@@ -5,7 +5,7 @@ import mongoose from 'mongoose';
 import authRoutes from './routes/auth.js';
 import chatRoutes from './routes/chat.js';
 
-dotenv.config({ path: '../.env' });
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
