@@ -9,6 +9,7 @@ Clean, working notes application **WITHOUT** Next.js SSR/hydration issues.
 ## ✅ What's Complete
 
 ### Backend (100% Done)
+
 - ✅ Express server with all API routes
 - ✅ MongoDB connection and Chat model
 - ✅ JWT authentication for admin
@@ -17,6 +18,7 @@ Clean, working notes application **WITHOUT** Next.js SSR/hydration issues.
 - ✅ Admin-protected routes
 
 ### Frontend (Structure Ready)
+
 - ✅ Vite React project initialized
 - ✅ Tailwind CSS configured
 - ✅ Proxy to backend configured
@@ -71,16 +73,19 @@ mahamudul-notes/
 ## 🔌 API Endpoints (All Working)
 
 ### Auth
+
 - `POST /api/auth/login` - Admin login
 - `GET /api/auth/verify` - Check auth
 
 ### Chats (Public)
+
 - `POST /api/chat/create` - Create note
-- `GET /api/chat/list` - List all notes  
+- `GET /api/chat/list` - List all notes
 - `GET /api/chat/search?q=query` - Search
 - `GET /api/chat/:id` - Get single note
 
 ### Chats (Admin Only)
+
 - `PUT /api/chat/:id` - Update note
 - `DELETE /api/chat/:id` - Delete note
 
@@ -90,12 +95,7 @@ mahamudul-notes/
 
 File: `.env` (in root)
 
-```env
-MONGODB_URI=mongodb+srv://mahamudul:mahamudul1234@mynote.qvw8orj.mongodb.net/?appName=mynote
-ADMIN_USERNAME=mahamudul
-ADMIN_PASSWORD=mahamudul@9900
-JWT_SECRET=super-secret-jwt-key-change-in-production-123456789
-```
+
 
 ---
 
@@ -117,16 +117,19 @@ body {
 ```
 
 ### 2. Create components in `client/src/components/`:
+
 - `Sidebar.jsx` - Left sidebar with search
 - `ChatView.jsx` - Main chat display
 - `AdminLogin.jsx` - Login page
 
 ### 3. Update `client/src/App.jsx`:
+
 - Import components
 - Set up React Router
 - Add state management
 
 ### 4. Test the full stack:
+
 - Start backend: `cd server && npm run dev`
 - Start frontend: `cd client && npm run dev`
 - Visit `http://localhost:3000`
