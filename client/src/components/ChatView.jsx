@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Edit2, Eye, Trash2, Copy, Check, Clock, FileText, CheckCircle, AlertCircle } from 'lucide-react';
+import { Edit2, Eye, Trash2, Copy, Check, Clock, FileText, CheckCircle, AlertCircle, Menu } from 'lucide-react';
 
 export default function ChatView({
     chat,
     isAdmin,
     onUpdate,
     onDelete,
-    loading
+    loading,
+    onMenuClick
 }) {
     const [isEditing, setIsEditing] = useState(false);
     const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -132,35 +133,43 @@ export default function ChatView({
     return (
         <div className="flex-1 flex flex-col h-full bg-white dark:bg-gray-950 transition-colors duration-300 overflow-hidden">
             {/* Header */}
-            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between bg-white/80 dark:bg-gray-950/80 backdrop-blur-md sticky top-0 z-10">
-                <div className="flex flex-col flex-1 min-w-0 mr-4">
-                    {isEditingTitle ? (
-                        <input
-                            type="text"
-                            value={title}
-                            onChange={handleTitleChange}
-                            onBlur={handleTitleBlur}
-                            onKeyDown={handleTitleKeyDown}
-                            className="text-xl font-bold text-gray-900 dark:text-white bg-transparent border-none focus:ring-0 p-0 w-full"
-                            autoFocus
-                        />
-                    ) : (
-                        <h2
-                            onClick={() => setIsEditingTitle(true)}
-                            className="text-xl font-bold text-gray-900 dark:text-white truncate cursor-pointer hover:text-blue-600 transition-colors"
-                            title="Click to rename"
-                        >
-                            {title || 'Untitled Note'}
-                        </h2>
-                    )}
-                    <div className="flex items-center gap-2 text-[10px] text-gray-400 uppercase tracking-wider font-semibold">
-                        <span>Last updated {new Date(chat.updatedAt).toLocaleString()}</span>
-                        {saveStatus && (
-                            <span className={`flex items-center gap-1 ${saveStatus === 'Error saving' ? 'text-red-500' : 'text-blue-500'}`}>
-                                {saveStatus === 'Error saving' ? <AlertCircle className="w-3 h-3" /> : <CheckCircle className="w-3 h-3" />}
-                                {saveStatus}
-                            </span>
+            <div className="px-4 sm:px-6 py-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between bg-white/80 dark:bg-gray-950/80 backdrop-blur-md sticky top-0 z-10">
+                <div className="flex items-center gap-3 flex-1 min-w-0 mr-2">
+                    <button
+                        onClick={onMenuClick}
+                        className="lg:hidden p-2 -ml-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                    >
+                        <Menu className="w-6 h-6" />
+                    </button>
+                    <div className="flex flex-col flex-1 min-w-0">
+                        {isEditingTitle ? (
+                            <input
+                                type="text"
+                                value={title}
+                                onChange={handleTitleChange}
+                                onBlur={handleTitleBlur}
+                                onKeyDown={handleTitleKeyDown}
+                                className="text-xl font-bold text-gray-900 dark:text-white bg-transparent border-none focus:ring-0 p-0 w-full"
+                                autoFocus
+                            />
+                        ) : (
+                            <h2
+                                onClick={() => setIsEditingTitle(true)}
+                                className="text-xl font-bold text-gray-900 dark:text-white truncate cursor-pointer hover:text-blue-600 transition-colors"
+                                title="Click to rename"
+                            >
+                                {title || 'Untitled Note'}
+                            </h2>
                         )}
+                        <div className="flex items-center gap-2 text-[10px] text-gray-400 uppercase tracking-wider font-semibold">
+                            <span>Last updated {new Date(chat.updatedAt).toLocaleString()}</span>
+                            {saveStatus && (
+                                <span className={`flex items-center gap-1 ${saveStatus === 'Error saving' ? 'text-red-500' : 'text-blue-500'}`}>
+                                    {saveStatus === 'Error saving' ? <AlertCircle className="w-3 h-3" /> : <CheckCircle className="w-3 h-3" />}
+                                    <span className="hidden xs:inline">{saveStatus}</span>
+                                </span>
+                            )}
+                        </div>
                     </div>
                 </div>
 
@@ -174,15 +183,15 @@ export default function ChatView({
                     </button>
                     <button
                         onClick={() => setIsEditing(!isEditing)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-xl font-semibold transition-all ${isEditing
+                        className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl font-semibold transition-all ${isEditing
                             ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25'
                             : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                             }`}
                     >
                         {isEditing ? (
-                            <><Eye className="w-4 h-4" /> Preview</>
+                            <><Eye className="w-4 h-4" /> <span className="hidden sm:inline">Preview</span></>
                         ) : (
-                            <><Edit2 className="w-4 h-4" /> Edit</>
+                            <><Edit2 className="w-4 h-4" /> <span className="hidden sm:inline">Edit</span></>
                         )}
                     </button>
                     {isAdmin && (
@@ -199,7 +208,7 @@ export default function ChatView({
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto custom-scrollbar">
-                <div className="max-w-4xl mx-auto px-6 py-8 h-full">
+                <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 h-full">
                     {isEditing ? (
                         <textarea
                             value={content}
@@ -217,7 +226,7 @@ export default function ChatView({
             </div>
 
             {/* Stats Bar */}
-            <div className="px-6 py-2 bg-gray-50/50 dark:bg-gray-900/50 border-t border-gray-100 dark:border-gray-800 flex items-center gap-4 text-[10px] text-gray-400 font-medium">
+            <div className="px-4 sm:px-6 py-2 bg-gray-50/50 dark:bg-gray-900/50 border-t border-gray-100 dark:border-gray-800 flex items-center gap-4 text-[10px] text-gray-400 font-medium">
                 <div className="flex items-center gap-1">
                     <FileText className="w-3 h-3" />
                     {words} words

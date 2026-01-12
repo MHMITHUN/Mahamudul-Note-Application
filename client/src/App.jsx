@@ -10,6 +10,7 @@ function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
     // Initialize theme
@@ -96,6 +97,7 @@ function App() {
       const data = await res.json();
       if (data.success) {
         setSelectedChat(data.chat);
+        setIsSidebarOpen(false); // Close sidebar on mobile after selection
       }
     } catch (err) {
       console.error('Failed to fetch chat details:', err);
@@ -159,20 +161,25 @@ function App() {
   }
 
   return (
-    <div className="flex h-screen bg-white dark:bg-gray-950 transition-colors duration-300 overflow-hidden">
+    <div className="flex h-screen bg-white dark:bg-gray-950 transition-colors duration-300 overflow-hidden relative">
       <Sidebar
         chats={chats}
         selectedChatId={selectedChat?._id}
         onSelectChat={handleSelectChat}
-        onNewChat={handleNewChat}
+        onNewChat={() => {
+          handleNewChat();
+          setIsSidebarOpen(false);
+        }}
         isAdmin={isAdmin}
         onLogout={handleLogout}
         onUpdate={handleUpdateChat}
         onDelete={handleDeleteChat}
         loading={loading || actionLoading}
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
       />
 
-      <main className="flex-1 relative overflow-hidden">
+      <main className="flex-1 relative overflow-hidden flex flex-col">
         {loading ? (
           <div className="flex items-center justify-center h-full">
             <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
@@ -184,6 +191,7 @@ function App() {
             onUpdate={handleUpdateChat}
             onDelete={handleDeleteChat}
             loading={actionLoading}
+            onMenuClick={() => setIsSidebarOpen(true)}
           />
         )}
       </main>
