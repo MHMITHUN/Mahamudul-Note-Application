@@ -106,7 +106,15 @@ export default function ChatView({
 
     if (!chat) {
         return (
-            <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-gray-950 transition-colors duration-300">
+            <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-gray-950 transition-colors duration-300 relative">
+                {/* Hamburger menu for mobile when no chat selected */}
+                <button
+                    onClick={onMenuClick}
+                    className="lg:hidden absolute top-4 left-4 p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors z-10"
+                >
+                    <Menu className="w-6 h-6" />
+                </button>
+
                 <div className="text-center space-y-6 max-w-md px-6 animate-in fade-in zoom-in duration-700">
                     <div className="relative mx-auto w-24 h-24">
                         <div className="absolute inset-0 bg-blue-500/20 blur-2xl rounded-full animate-pulse" />
