@@ -1,9 +1,9 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import mongoose from 'mongoose';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { connectDB } from './db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -25,12 +25,21 @@ app.use((req, res, next) => {
     next();
 });
 
-// MongoDB Connection
-mongoose.connect(process.env.MONGODB_URI, {
-    dbName: 'mynote'
-})
-    .then(() => console.log('✅ MongoDB connected successfully'))
-    .catch(err => console.error('❌ MongoDB connection error:', err));
+// MongoDB Connection Middleware (Vercel-safe)
+// This ensures DB is connected before handling any request
+// Uses cached connection when serverless container is warm
+app.use(async (req, res, next) => {
+    try {
+        await connectDB();
+        next();
+    } catch (error) {
+        console.error('Database connection failed:', error.message);
+        res.status(500).json({
+            error: 'Database connection failed',
+            message: 'Please try again in a moment'
+        });
+    }
+});
 
 // Routes
 app.use('/api/auth', authRoutes);
