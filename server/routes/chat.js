@@ -1,6 +1,6 @@
 import express from 'express';
 import Chat from '../models/Chat.js';
-import { verifyAdmin } from '../middleware/auth.js';
+import { verifyAdmin, optionalAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -58,14 +58,35 @@ router.get('/:id', async (req, res) => {
     }
 });
 
-// Update chat (public)
-router.put('/:id', async (req, res) => {
+// Update chat (with auth-aware restrictions)
+router.put('/:id', optionalAuth, async (req, res) => {
     try {
         const { content, title, isTitleManual, isPinned } = req.body;
         const chat = await Chat.findById(req.params.id);
+
         if (!chat) {
             return res.status(404).json({ error: 'Chat not found' });
         }
+
+        const isAdmin = req.user?.isAdmin || false;
+
+        // RESTRICTION 1: Only admin can pin/unpin
+        if (isPinned !== undefined && !isAdmin) {
+            return res.status(403).json({
+                error: 'Only admin can pin/unpin notes'
+            });
+        }
+
+        // RESTRICTION 2: If note is pinned, only admin can edit
+        if (chat.isPinned && !isAdmin) {
+            if (content !== undefined || title !== undefined || isTitleManual !== undefined) {
+                return res.status(403).json({
+                    error: 'This note is pinned. Only admin can edit pinned notes.'
+                });
+            }
+        }
+
+        // Apply updates
         if (content !== undefined) chat.content = content;
         if (title !== undefined) chat.title = title;
         if (isTitleManual !== undefined) chat.isTitleManual = isTitleManual;

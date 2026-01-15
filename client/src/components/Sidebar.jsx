@@ -174,16 +174,18 @@ export default function Sidebar({
                                     ref={menuRef}
                                     className="absolute right-2 top-10 w-32 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-100 dark:border-gray-700 z-50 py-1 animate-in fade-in zoom-in duration-200"
                                 >
-                                    <button
-                                        onClick={() => {
-                                            onUpdate(chat._id, { isPinned: !chat.isPinned });
-                                            setMenuOpenId(null);
-                                        }}
-                                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                                    >
-                                        {chat.isPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
-                                        {chat.isPinned ? 'Unpin' : 'Pin'}
-                                    </button>
+                                    {isAdmin && (
+                                        <button
+                                            onClick={() => {
+                                                onUpdate(chat._id, { isPinned: !chat.isPinned });
+                                                setMenuOpenId(null);
+                                            }}
+                                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                                        >
+                                            {chat.isPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
+                                            {chat.isPinned ? 'Unpin' : 'Pin'}
+                                        </button>
+                                    )}
                                     <button
                                         onClick={() => handleRenameStart(chat)}
                                         className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"

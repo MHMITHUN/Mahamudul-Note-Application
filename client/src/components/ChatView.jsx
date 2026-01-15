@@ -55,7 +55,7 @@ export default function ChatView({
         setSaveStatus('Typing...');
         autoSaveTimer.current = setTimeout(() => {
             saveContent({ content: newContent });
-        }, 1000);
+        }, 5000); // Changed from 1000ms to 5000ms (5 seconds)
     };
 
     const handleTitleChange = (e) => {
@@ -94,6 +94,16 @@ export default function ChatView({
         navigator.clipboard.writeText(content);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
+    };
+
+    // Double-tap to edit handler
+    const handleDoubleClick = () => {
+        // Only allow edit if not pinned OR user is admin
+        if (!chat.isPinned || isAdmin) {
+            setIsEditing(true);
+        } else {
+            alert('This note is pinned. Only admin can edit pinned notes.');
+        }
     };
 
     const getStats = () => {
@@ -190,11 +200,21 @@ export default function ChatView({
                         {copied ? <Check className="w-5 h-5 text-green-500" /> : <Copy className="w-5 h-5" />}
                     </button>
                     <button
-                        onClick={() => setIsEditing(!isEditing)}
+                        onClick={() => {
+                            if (!chat.isPinned || isAdmin) {
+                                setIsEditing(!isEditing);
+                            } else {
+                                alert('This note is pinned. Only admin can edit pinned notes.');
+                            }
+                        }}
+                        disabled={chat.isPinned && !isAdmin}
                         className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl font-semibold transition-all ${isEditing
                             ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25'
-                            : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                            : (chat.isPinned && !isAdmin)
+                                ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed opacity-50'
+                                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                             }`}
+                        title={chat.isPinned && !isAdmin ? 'Pinned notes can only be edited by admin' : ''}
                     >
                         {isEditing ? (
                             <><Eye className="w-4 h-4" /> <span className="hidden sm:inline">Preview</span></>
@@ -226,7 +246,11 @@ export default function ChatView({
                             autoFocus
                         />
                     ) : (
-                        <div className="prose prose-lg dark:prose-invert max-w-none animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <div
+                            className="prose prose-lg dark:prose-invert max-w-none animate-in fade-in slide-in-from-bottom-4 duration-500 cursor-pointer"
+                            onDoubleClick={handleDoubleClick}
+                            title={chat.isPinned && !isAdmin ? 'Pinned note - Admin only' : 'Double-click to edit'}
+                        >
                             <ReactMarkdown>{content || '*No content yet.*'}</ReactMarkdown>
                         </div>
                     )}
