@@ -13,12 +13,14 @@ function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
-    // Initialize theme
+    // Initialize theme - default to dark mode
     const savedTheme = localStorage.getItem('theme');
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+
+    if (savedTheme === 'dark' || !savedTheme) {
+      // Dark mode if saved as dark OR no preference saved (default to dark)
       document.documentElement.classList.add('dark');
     } else {
+      // Light mode only if explicitly saved as light
       document.documentElement.classList.remove('dark');
     }
 

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Edit2, Eye, Trash2, Copy, Check, Clock, FileText, CheckCircle, AlertCircle, Menu } from 'lucide-react';
+import Swal from 'sweetalert2';
 
 export default function ChatView({
     chat,
@@ -102,7 +103,18 @@ export default function ChatView({
         if (!chat.isPinned || isAdmin) {
             setIsEditing(true);
         } else {
-            alert('This note is pinned. Only admin can edit pinned notes.');
+            Swal.fire({
+                title: 'Access Denied',
+                text: 'This note is pinned. Only admin can edit pinned notes.',
+                icon: 'warning',
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#3b82f6',
+                backdrop: true,
+                customClass: {
+                    popup: 'rounded-2xl',
+                    confirmButton: 'rounded-xl px-6 py-2 font-semibold'
+                }
+            });
         }
     };
 
@@ -204,7 +216,18 @@ export default function ChatView({
                             if (!chat.isPinned || isAdmin) {
                                 setIsEditing(!isEditing);
                             } else {
-                                alert('This note is pinned. Only admin can edit pinned notes.');
+                                Swal.fire({
+                                    title: 'Access Denied',
+                                    text: 'This note is pinned. Only admin can edit pinned notes.',
+                                    icon: 'warning',
+                                    confirmButtonText: 'OK',
+                                    confirmButtonColor: '#3b82f6',
+                                    backdrop: true,
+                                    customClass: {
+                                        popup: 'rounded-2xl',
+                                        confirmButton: 'rounded-xl px-6 py-2 font-semibold'
+                                    }
+                                });
                             }
                         }}
                         disabled={chat.isPinned && !isAdmin}

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Plus, MessageSquare, Search, LogOut, User, MoreVertical, Edit2, Trash2, Check, X, Pin, PinOff } from 'lucide-react';
+import { Plus, MessageSquare, Search, LogOut, User, MoreVertical, Edit2, Trash2, Check, X, Pin, PinOff, Shield } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
 
 export default function Sidebar({
@@ -235,12 +235,13 @@ export default function Sidebar({
                             </button>
                         </div>
                     ) : (
-                        <a
-                            href="/admin/login"
-                            className="block text-center text-sm text-gray-500 hover:text-blue-600 transition-colors"
+                        <button
+                            onClick={() => window.location.href = '/admin/login'}
+                            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl font-semibold transition-all shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 active:scale-95"
                         >
-                            Admin Login
-                        </a>
+                            <Shield className="w-5 h-5" />
+                            <span>Admin Access</span>
+                        </button>
                     )}
                 </div>
             </div>
