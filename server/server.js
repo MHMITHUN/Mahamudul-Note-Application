@@ -9,6 +9,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 import authRoutes from './routes/auth.js';
 import chatRoutes from './routes/chat.js';
+import folderRoutes from './routes/folder.js';
 
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
@@ -44,6 +45,7 @@ app.use(async (req, res, next) => {
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/folder', folderRoutes);
 
 app.get('/', (req, res) => {
     res.json({ message: 'Notes API Server Running' });

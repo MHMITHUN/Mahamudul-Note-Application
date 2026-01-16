@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Edit2, Eye, Trash2, Copy, Check, Clock, FileText, CheckCircle, AlertCircle, Menu } from 'lucide-react';
+import { Edit2, Eye, Trash2, Copy, Check, Clock, FileText, CheckCircle, AlertCircle, Menu, AlignLeft, Type } from 'lucide-react';
 import Swal from 'sweetalert2';
 
 export default function ChatView({
@@ -18,6 +18,7 @@ export default function ChatView({
     const [saving, setSaving] = useState(false);
     const [saveStatus, setSaveStatus] = useState('');
     const [copied, setCopied] = useState(false);
+    const [useRawView, setUseRawView] = useState(false); // Toggle between raw and styled preview
     const autoSaveTimer = useRef(null);
 
     useEffect(() => {
@@ -41,6 +42,11 @@ export default function ChatView({
             if ((e.ctrlKey || e.metaKey) && e.key === 'e') {
                 e.preventDefault();
                 setIsEditing(!isEditing);
+            }
+            // Shift + Enter to Save (Enter alone creates new lines)
+            if (e.shiftKey && e.key === 'Enter' && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+                saveContent({ content });
             }
         };
 
@@ -191,19 +197,50 @@ export default function ChatView({
                                 {title || 'Untitled Note'}
                             </h2>
                         )}
-                        <div className="flex items-center gap-2 text-[10px] text-gray-400 uppercase tracking-wider font-semibold">
-                            <span>Last updated {new Date(chat.updatedAt).toLocaleString()}</span>
-                            {saveStatus && (
-                                <span className={`flex items-center gap-1 ${saveStatus === 'Error saving' ? 'text-red-500' : 'text-blue-500'}`}>
-                                    {saveStatus === 'Error saving' ? <AlertCircle className="w-3 h-3" /> : <CheckCircle className="w-3 h-3" />}
-                                    <span className="hidden xs:inline">{saveStatus}</span>
-                                </span>
-                            )}
+                        <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-2 text-[10px] text-gray-400 uppercase tracking-wider font-semibold">
+                                <span>Last updated {new Date(chat.updatedAt).toLocaleString()}</span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+                                <div className="flex items-center gap-1" title="Unique views">
+                                    <Eye className="w-3 h-3" />
+                                    <span>{chat.viewCount || 0}</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <FileText className="w-3 h-3" />
+                                    <span>{words} words</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <Clock className="w-3 h-3" />
+                                    <span>{readingTime} min</span>
+                                </div>
+                                {saveStatus && (
+                                    <div className={`flex items-center gap-1 ${saveStatus === 'Error saving' ? 'text-red-500' : 'text-blue-500'}`}>
+                                        {saveStatus === 'Saved' ? (
+                                            <CheckCircle className="w-3 h-3 text-green-500" />
+                                        ) : saveStatus === 'Saving...' ? (
+                                            <Clock className="w-3 h-3 animate-spin" />
+                                        ) : (
+                                            <AlertCircle className="w-3 h-3" />
+                                        )}
+                                        <span className="hidden xs:inline">{saveStatus}</span>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <div className="flex items-center gap-2">
+                    {!isEditing && (
+                        <button
+                            onClick={() => setUseRawView(!useRawView)}
+                            className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-all"
+                            title={useRawView ? "Switch to Styled View" : "Switch to Raw View"}
+                        >
+                            {useRawView ? <Type className="w-5 h-5" /> : <AlignLeft className="w-5 h-5" />}
+                        </button>
+                    )}
                     <button
                         onClick={handleCopy}
                         className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-all"
@@ -264,17 +301,24 @@ export default function ChatView({
                         <textarea
                             value={content}
                             onChange={handleContentChange}
-                            className="w-full h-full min-h-[500px] p-0 bg-transparent border-none focus:ring-0 text-gray-900 dark:text-gray-100 font-mono text-lg resize-none placeholder-gray-300 dark:placeholder-gray-700"
-                            placeholder="Start writing your note here... (Markdown supported)"
+                            className="w-full h-full min-h-[500px] resize-none bg-transparent text-gray-900 dark:text-gray-100 focus:outline-none text-lg leading-relaxed"
+                            style={{ caretColor: '#3b82f6' }}
+                            placeholder="Start typing your note here..."
+                            spellCheck={true}
                             autoFocus
                         />
                     ) : (
                         <div
                             className="prose prose-lg dark:prose-invert max-w-none animate-in fade-in slide-in-from-bottom-4 duration-500 cursor-pointer"
+                            style={useRawView ? { whiteSpace: 'pre-wrap' } : {}}
                             onDoubleClick={handleDoubleClick}
                             title={chat.isPinned && !isAdmin ? 'Pinned note - Admin only' : 'Double-click to edit'}
                         >
-                            <ReactMarkdown>{content || '*No content yet.*'}</ReactMarkdown>
+                            {useRawView ? (
+                                <div className="text-lg leading-relaxed">{content || '*No content yet.*'}</div>
+                            ) : (
+                                <ReactMarkdown>{content || '*No content yet.*'}</ReactMarkdown>
+                            )}
                         </div>
                     )}
                 </div>
@@ -292,7 +336,7 @@ export default function ChatView({
                 </div>
                 <div className="ml-auto flex items-center gap-3">
                     <span className="hidden sm:inline">Ctrl+E: Edit</span>
-                    <span className="hidden sm:inline">Ctrl+S: Save</span>
+                    <span className="hidden sm:inline">Shift+Enter: Save</span>
                 </div>
             </div>
         </div>

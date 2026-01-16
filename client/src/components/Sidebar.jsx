@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Plus, MessageSquare, Search, LogOut, User, MoreVertical, Edit2, Trash2, Check, X, Pin, PinOff, Shield } from 'lucide-react';
+import { Plus, MessageSquare, Search, LogOut, User, MoreVertical, Edit2, Trash2, Check, X, Pin, PinOff, Shield, Folder, Lock, Unlock, ChevronRight, ChevronDown } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
 
 export default function Sidebar({
@@ -13,12 +13,19 @@ export default function Sidebar({
     onDelete,
     loading,
     isOpen,
-    onClose
+    onClose,
+    folders = [],
+    selectedFolder = null,
+    onFolderClick = () => { },
+    onCreateFolder = () => { },
+    onDeleteFolder = () => { },
+    unlockedFolders = new Set()
 }) {
     const [searchQuery, setSearchQuery] = useState('');
     const [menuOpenId, setMenuOpenId] = useState(null);
     const [renamingId, setRenamingId] = useState(null);
     const [renameValue, setRenameValue] = useState('');
+    const [isFoldersExpanded, setIsFoldersExpanded] = useState(true);
     const menuRef = useRef(null);
 
     useEffect(() => {
@@ -100,6 +107,81 @@ export default function Sidebar({
                         New Chat
                     </button>
 
+                    {/* Folders Section */}
+                    <div className="space-y-1 pt-2">
+                        <div className="flex items-center justify-between px-2">
+                            <button
+                                onClick={() => setIsFoldersExpanded(!isFoldersExpanded)}
+                                className="flex items-center gap-1 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                            >
+                                {isFoldersExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                                Folders
+                            </button>
+                            <button
+                                onClick={onCreateFolder}
+                                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded text-gray-500 transition-colors"
+                                title="New Folder"
+                            >
+                                <Plus className="w-3 h-3" />
+                            </button>
+                        </div>
+
+                        {isFoldersExpanded && (
+                            <div className="space-y-0.5 animate-in slide-in-from-top-2 duration-200">
+                                {/* Root Folder (All Notes) */}
+                                <button
+                                    onClick={() => onFolderClick({ _id: 'all' })}
+                                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${selectedFolder === 'all'
+                                        ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium'
+                                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                                        }`}
+                                >
+                                    <MessageSquare className="w-4 h-4" />
+                                    <span className="flex-1 text-left truncate">All Notes</span>
+                                </button>
+
+                                {/* User Folders */}
+                                {folders.map(folder => {
+                                    const isLocked = folder.isProtected && !unlockedFolders.has(folder._id) && !isAdmin;
+                                    return (
+                                        <div key={folder._id} className="group flex items-center gap-1">
+                                            <button
+                                                onClick={() => onFolderClick(folder)}
+                                                className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${selectedFolder === folder._id
+                                                    ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium'
+                                                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                                                    }`}
+                                            >
+                                                <span className="text-base">{folder.icon || '📁'}</span>
+                                                <span className="flex-1 text-left truncate">{folder.name}</span>
+                                                {folder.isProtected && (
+                                                    isLocked ? <Lock className="w-3 h-3 text-gray-400" /> : <Unlock className="w-3 h-3 text-green-500" />
+                                                )}
+                                                {folder.chatCount > 0 && (
+                                                    <span className="text-xs text-gray-400 bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded-full">
+                                                        {folder.chatCount}
+                                                    </span>
+                                                )}
+                                            </button>
+                                            {isAdmin && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        onDeleteFolder(folder._id);
+                                                    }}
+                                                    className="p-1.5 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-all"
+                                                    title="Delete Folder"
+                                                >
+                                                    <Trash2 className="w-3 h-3" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <input
@@ -134,29 +216,32 @@ export default function Sidebar({
                                     </button>
                                 </div>
                             ) : (
-                                <button
-                                    onClick={() => onSelectChat(chat._id)}
-                                    className={`w-full text-left p-3 rounded-xl transition-all group relative ${selectedChatId === chat._id
-                                        ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
-                                        : 'hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'
-                                        }`}
-                                >
-                                    <div className="font-medium truncate pr-8 flex items-center gap-2">
-                                        {chat.isPinned && <Pin className="w-3 h-3 text-blue-500 fill-blue-500" />}
-                                        {chat.title || 'Untitled Note'}
-                                    </div>
-                                    <div className="text-[10px] opacity-60 mt-1">
-                                        {new Date(chat.updatedAt).toLocaleDateString(undefined, {
-                                            month: 'short',
-                                            day: 'numeric',
-                                            hour: '2-digit',
-                                            minute: '2-digit'
-                                        })}
-                                    </div>
-                                    {selectedChatId === chat._id && (
-                                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-blue-600 rounded-r-full" />
-                                    )}
+                                <>
+                                    <button
+                                        onClick={() => onSelectChat(chat._id)}
+                                        className={`w-full text-left p-3 rounded-xl transition-all group relative ${selectedChatId === chat._id
+                                            ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
+                                            : 'hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'
+                                            }`}
+                                    >
+                                        <div className="font-medium truncate pr-8 flex items-center gap-2">
+                                            {chat.isPinned && <Pin className="w-3 h-3 text-blue-500 fill-blue-500" />}
+                                            {chat.title || 'Untitled Note'}
+                                        </div>
+                                        <div className="text-[10px] opacity-60 mt-1">
+                                            {new Date(chat.updatedAt).toLocaleDateString(undefined, {
+                                                month: 'short',
+                                                day: 'numeric',
+                                                hour: '2-digit',
+                                                minute: '2-digit'
+                                            })}
+                                        </div>
+                                        {selectedChatId === chat._id && (
+                                            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-blue-600 rounded-r-full" />
+                                        )}
+                                    </button>
 
+                                    {/* Menu button - OUTSIDE the chat button to avoid nesting */}
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();
@@ -166,7 +251,7 @@ export default function Sidebar({
                                     >
                                         <MoreVertical className="w-4 h-4" />
                                     </button>
-                                </button>
+                                </>
                             )}
 
                             {menuOpenId === chat._id && (

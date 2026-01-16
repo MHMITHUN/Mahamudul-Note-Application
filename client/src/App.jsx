@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import ChatView from './components/ChatView';
 import ThemeToggle from './components/ThemeToggle';
+import CreateFolderModal from './components/CreateFolderModal';
+import FolderPasswordModal from './components/FolderPasswordModal';
 import { Loader2, User, MessageSquare, Eye, EyeOff } from 'lucide-react';
 
 function App() {
@@ -11,6 +13,14 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  // Folder state
+  const [folders, setFolders] = useState([]);
+  const [selectedFolder, setSelectedFolder] = useState('all'); // 'all' = All Notes view
+  const [unlockedFolders, setUnlockedFolders] = useState(new Set());
+  const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordModalFolder, setPasswordModalFolder] = useState(null);
 
   useEffect(() => {
     // Initialize theme - default to dark mode
@@ -25,7 +35,12 @@ function App() {
     }
 
     checkAuth();
-    fetchChats();
+    fetchFolders();
+    fetchChats('all'); // Fetch all notes initially
+
+    // Load unlocked folders from localStorage
+    const unlocked = JSON.parse(localStorage.getItem('unlockedFolders') || '[]');
+    setUnlockedFolders(new Set(unlocked));
   }, []);
 
   useEffect(() => {
@@ -55,10 +70,24 @@ function App() {
     }
   };
 
-  const fetchChats = async () => {
+  const fetchChats = async (folderId = selectedFolder) => {
     setLoading(true);
     try {
-      const res = await fetch('/api/chat/list');
+      // If folderId is 'all', we fetch all public notes
+      // If folderId is null/undefined, we default to 'all' if not specified, 
+      // BUT if we explicitly want root, we should pass 'root'.
+      // However, the backend treats 'root' as null folder.
+
+      let url;
+      if (folderId === 'all') {
+        url = '/api/chat/list?folderId=all';
+      } else if (folderId === null || folderId === 'root') {
+        url = '/api/chat/list?folderId=root';
+      } else {
+        url = `/api/chat/list?folderId=${folderId}`;
+      }
+
+      const res = await fetch(url);
       const data = await res.json();
       if (data.success) {
         setChats(data.chats);
@@ -70,18 +99,37 @@ function App() {
     }
   };
 
+  const fetchFolders = async () => {
+    try {
+      const res = await fetch('/api/folder/list');
+      const data = await res.json();
+      if (data.success) {
+        setFolders(data.folders);
+      }
+    } catch (err) {
+      console.error('Failed to fetch folders:', err);
+    }
+  };
+
   const handleNewChat = async () => {
     setActionLoading(true);
     try {
       const res = await fetch('/api/chat/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: '# New Note\n\nStart typing your note here...' })
+        body: JSON.stringify({
+          content: '# New Note\n\nStart typing your note here...',
+          // Convert 'all' to null (root folder) for note creation
+          folderId: selectedFolder === 'all' ? null : selectedFolder
+        })
       });
       const data = await res.json();
       if (data.success) {
-        setChats(prev => [data.chat, ...prev]);
+        // Set the new chat as selected immediately
         setSelectedChat(data.chat);
+        // Refresh the chat list from server to ensure consistency
+        // This ensures the new chat appears in the correct folder context
+        await fetchChats(selectedFolder);
       } else {
         alert('Failed to create note: ' + (data.error || 'Unknown error'));
       }
@@ -95,14 +143,31 @@ function App() {
 
   const handleSelectChat = async (id) => {
     try {
+      console.log('Selecting chat:', id);
       const res = await fetch(`/api/chat/${id}`);
       const data = await res.json();
+      console.log('Chat data received:', data);
+
       if (data.success) {
+        console.log('Setting selected chat:', data.chat);
         setSelectedChat(data.chat);
         setIsSidebarOpen(false); // Close sidebar on mobile after selection
+
+        // Update the chat in the local list if it exists
+        setChats(prev => {
+          const existing = prev.find(c => c._id === id);
+          if (existing) {
+            return prev.map(c => c._id === id ? data.chat : c);
+          }
+          return prev;
+        });
+      } else {
+        console.error('Failed to select chat - success is false:', data);
+        alert('Failed to load note: ' + (data.error || 'Unknown error'));
       }
     } catch (err) {
       console.error('Failed to fetch chat details:', err);
+      alert('Network error while loading note. Please check your connection.');
     }
   };
 
@@ -148,6 +213,136 @@ function App() {
     }
   };
 
+  // Folder handlers
+  const handleCreateFolder = async (folderData) => {
+    // Check for duplicate folder names (case-insensitive)
+    const duplicateFolder = folders.find(
+      f => f.name.toLowerCase() === folderData.name.toLowerCase()
+    );
+
+    if (duplicateFolder) {
+      const Swal = (await import('sweetalert2')).default;
+      Swal.fire({
+        title: 'Duplicate Folder Name',
+        html: `A folder named <strong>"${duplicateFolder.name}"</strong> already exists.<br>Please choose a different name.`,
+        icon: 'warning',
+        confirmButtonColor: '#3b82f6',
+        confirmButtonText: 'OK',
+        buttonsStyling: true,
+        background: '#1f2937', // Dark gray background
+        color: '#f3f4f6', // Light text
+        customClass: {
+          popup: 'rounded-2xl',
+          confirmButton: 'rounded-xl px-6 py-3 font-semibold shadow-lg',
+          htmlContainer: 'text-gray-100'
+        }
+      });
+      throw new Error('Duplicate folder name');
+    }
+
+    try {
+      const res = await fetch('/api/folder/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(folderData)
+      });
+      const data = await res.json();
+      if (data.success) {
+        setFolders(prev => [data.folder, ...prev]);
+      }
+    } catch (err) {
+      console.error('Failed to create folder:', err);
+      throw err;
+    }
+  };
+
+  const handleFolderClick = async (folder) => {
+    const folderId = folder._id;
+
+    // Clear unlocked folders when switching to a different folder (re-lock security)
+    // This ensures folders re-lock when you navigate away
+    if (selectedFolder !== folderId) {
+      setUnlockedFolders(new Set());
+      localStorage.removeItem('unlockedFolders');
+    }
+
+    // Admin can access all folders without password
+    if (isAdmin) {
+      setSelectedFolder(folderId);
+      await fetchChats(folderId);
+      return;
+    }
+
+    // Check if folder is protected and not unlocked
+    if (folder.isProtected && !unlockedFolders.has(folder._id)) {
+      setPasswordModalFolder(folder);
+      setShowPasswordModal(true);
+    } else {
+      setSelectedFolder(folderId);
+      await fetchChats(folderId);
+    }
+  };
+
+  const handleVerifyFolderPassword = async (folderId, password) => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(`/api/folder/${folderId}/verify`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ password })
+      });
+      const data = await res.json();
+
+      if (data.verified) {
+        // Add to unlocked set
+        const newUnlocked = new Set(unlockedFolders);
+        newUnlocked.add(folderId);
+        setUnlockedFolders(newUnlocked);
+
+        // Save to localStorage
+        localStorage.setItem('unlockedFolders', JSON.stringify([...newUnlocked]));
+
+        // Select the folder
+        setSelectedFolder(folderId);
+        await fetchChats(folderId);
+
+        // Close the modal
+        setShowPasswordModal(false);
+        setPasswordModalFolder(null);
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Failed to verify password:', err);
+      throw err;
+    }
+  };
+
+  const handleDeleteFolder = async (folderId) => {
+    if (!window.confirm('Delete this folder and all its notes?')) return;
+
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch(`/api/folder/${folderId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setFolders(prev => prev.filter(f => f._id !== folderId));
+        if (selectedFolder === folderId) {
+          setSelectedFolder(null);
+          fetchChats(null);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to delete folder:', err);
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('token');
     setIsAdmin(false);
@@ -179,6 +374,12 @@ function App() {
         loading={loading || actionLoading}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
+        folders={folders}
+        selectedFolder={selectedFolder}
+        onFolderClick={handleFolderClick}
+        onCreateFolder={() => setShowCreateFolderModal(true)}
+        onDeleteFolder={handleDeleteFolder}
+        unlockedFolders={unlockedFolders}
       />
 
       <main className="flex-1 relative overflow-hidden flex flex-col">
@@ -197,6 +398,19 @@ function App() {
           />
         )}
       </main>
+
+      {/* Modals */}
+      <CreateFolderModal
+        isOpen={showCreateFolderModal}
+        onClose={() => setShowCreateFolderModal(false)}
+        onCreateFolder={handleCreateFolder}
+      />
+      <FolderPasswordModal
+        isOpen={showPasswordModal}
+        folder={passwordModalFolder}
+        onClose={() => setShowPasswordModal(false)}
+        onVerify={handleVerifyFolderPassword}
+      />
     </div>
   );
 }

@@ -20,6 +20,20 @@ const ChatSchema = new mongoose.Schema(
             required: true,
             default: '',
         },
+        folderId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Folder',
+            default: null, // null = root folder (no folder)
+        },
+        viewCount: {
+            type: Number,
+            default: 0,
+        },
+        lastViewedBy: {
+            type: Map,
+            of: Date, // Map of sessionId/IP -> last viewed timestamp
+            default: new Map(),
+        },
     },
     {
         timestamps: true,
