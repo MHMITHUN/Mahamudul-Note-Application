@@ -34,13 +34,13 @@ function App() {
       document.documentElement.classList.remove('dark');
     }
 
-    checkAuth();
-    fetchFolders();
-    fetchChats('all'); // Fetch all notes initially
+    // IMPORTANT: Clear unlocked folders on page load for security
+    // Folders should always re-lock when you refresh the page
+    localStorage.removeItem('unlockedFolders');
 
-    // Load unlocked folders from localStorage
-    const unlocked = JSON.parse(localStorage.getItem('unlockedFolders') || '[]');
-    setUnlockedFolders(new Set(unlocked));
+    checkAuth(); // Assuming checkAuth is the correct function name, not fetchAuth
+    fetchFolders();
+    fetchChats(selectedFolder); // Fetch chats based on the initial selectedFolder
   }, []);
 
   useEffect(() => {
@@ -297,13 +297,10 @@ function App() {
       const data = await res.json();
 
       if (data.verified) {
-        // Add to unlocked set
+        // Add to unlocked set (only for current session)
         const newUnlocked = new Set(unlockedFolders);
         newUnlocked.add(folderId);
         setUnlockedFolders(newUnlocked);
-
-        // Save to localStorage
-        localStorage.setItem('unlockedFolders', JSON.stringify([...newUnlocked]));
 
         // Select the folder
         setSelectedFolder(folderId);
