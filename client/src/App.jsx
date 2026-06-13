@@ -38,9 +38,16 @@ function App() {
     // Folders should always re-lock when you refresh the page
     localStorage.removeItem('unlockedFolders');
 
-    checkAuth(); // Assuming checkAuth is the correct function name, not fetchAuth
+    checkAuth();
     fetchFolders();
-    fetchChats(selectedFolder); // Fetch chats based on the initial selectedFolder
+
+    const params = new URLSearchParams(window.location.search);
+    const noteId = params.get('note');
+    
+    if (noteId) {
+      handleSelectChat(noteId);
+    }
+    fetchChats(selectedFolder);
   }, []);
 
   useEffect(() => {

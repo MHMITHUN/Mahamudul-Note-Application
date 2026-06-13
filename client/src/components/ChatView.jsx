@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Edit2, Eye, Trash2, Copy, Check, Clock, FileText, CheckCircle, AlertCircle, Menu, AlignLeft, Type } from 'lucide-react';
+import { Edit2, Eye, Trash2, Copy, Check, Clock, FileText, CheckCircle, AlertCircle, Menu, AlignLeft, Type, Share2 } from 'lucide-react';
 import Swal from 'sweetalert2';
 
 export default function ChatView({
@@ -18,6 +18,7 @@ export default function ChatView({
     const [saving, setSaving] = useState(false);
     const [saveStatus, setSaveStatus] = useState('');
     const [copied, setCopied] = useState(false);
+    const [shared, setShared] = useState(false);
     const [useRawView, setUseRawView] = useState(false); // Toggle between raw and styled preview
     const autoSaveTimer = useRef(null);
 
@@ -101,6 +102,14 @@ export default function ChatView({
         navigator.clipboard.writeText(content);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
+    };
+
+    const handleShare = () => {
+        const shareUrl = `${window.location.origin}/?note=${chat._id}`;
+        navigator.clipboard.writeText(shareUrl);
+        window.history.replaceState({}, '', `/?note=${chat._id}`);
+        setShared(true);
+        setTimeout(() => setShared(false), 2000);
     };
 
     // Double-tap to edit handler
@@ -241,6 +250,13 @@ export default function ChatView({
                             {useRawView ? <Type className="w-5 h-5" /> : <AlignLeft className="w-5 h-5" />}
                         </button>
                     )}
+                    <button
+                        onClick={handleShare}
+                        className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-all"
+                        title="Share Note"
+                    >
+                        {shared ? <Check className="w-5 h-5 text-green-500" /> : <Share2 className="w-5 h-5" />}
+                    </button>
                     <button
                         onClick={handleCopy}
                         className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-all"
