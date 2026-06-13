@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Edit2, Eye, Trash2, Copy, Check, Clock, FileText, CheckCircle, AlertCircle, Menu, AlignLeft, Type, Share2, Plus, ChevronDown, ChevronRight, Layers, X } from 'lucide-react';
+import { Edit2, Eye, Trash2, Copy, Check, Clock, FileText, CheckCircle, AlertCircle, Menu, AlignLeft, Type, Share2, Plus, ChevronDown, ChevronRight, Layers, X, Maximize2 } from 'lucide-react';
 import Swal from 'sweetalert2';
 
 export default function ChatView({
@@ -24,6 +24,7 @@ export default function ChatView({
     const [shared, setShared] = useState(false);
     const [useRawView, setUseRawView] = useState(false); // Toggle between raw and styled preview
     const [showSubnotesPanel, setShowSubnotesPanel] = useState(false);
+    const [maximizedSubnoteId, setMaximizedSubnoteId] = useState(null);
     const autoSaveTimer = useRef(null);
     const subnoteAutoSaveTimer = useRef({});
 
@@ -35,6 +36,7 @@ export default function ChatView({
         setIsEditingTitle(false);
         setEditingSubnoteId(null);
         setShowSubnotesPanel(false);
+        setMaximizedSubnoteId(null);
     }, [chat?._id]);
 
     // Keyboard Shortcuts
@@ -427,7 +429,13 @@ export default function ChatView({
 
             {/* Right Subnotes Panel */}
             {showSubnotesPanel && (
-                <div className="w-80 md:w-96 shrink-0 border-l border-gray-200 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-900/80 backdrop-blur-xl flex flex-col h-full absolute right-0 top-0 bottom-0 z-20 shadow-[-10px_0_30px_-15px_rgba(0,0,0,0.1)] dark:shadow-[-10px_0_30px_-15px_rgba(0,0,0,0.5)] animate-in slide-in-from-right-8 duration-300">
+                <>
+                    {/* Backdrop to detect clicks outside */}
+                    <div 
+                        className="absolute inset-0 z-10 bg-transparent" 
+                        onClick={() => setShowSubnotesPanel(false)}
+                    />
+                    <div className="w-80 md:w-96 shrink-0 border-l border-gray-200 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-900/80 backdrop-blur-xl flex flex-col h-full absolute right-0 top-0 bottom-0 z-20 shadow-[-10px_0_30px_-15px_rgba(0,0,0,0.1)] dark:shadow-[-10px_0_30px_-15px_rgba(0,0,0,0.5)] animate-in slide-in-from-right-8 duration-300">
                     <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-800 bg-white/50 dark:bg-gray-950/50">
                         <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
                             <Layers className="w-5 h-5 text-blue-500" />
@@ -462,69 +470,185 @@ export default function ChatView({
                             </div>
                         ) : (
                             subnotes.map((subnote) => (
-                                <div key={subnote._id} className="border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden bg-white dark:bg-gray-900 shadow-sm transition-all group">
-                                    <div 
-                                        className="flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800/80 cursor-pointer transition-colors"
-                                        onClick={() => toggleSubnoteExpand(subnote._id)}
-                                    >
-                                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                                            {expandedSubnotes.has(subnote._id) ? (
-                                                <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />
-                                            ) : (
-                                                <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />
-                                            )}
-                                            
-                                            {editingSubnoteId === subnote._id ? (
-                                                <input
-                                                    type="text"
-                                                    value={subnote.title}
-                                                    onChange={(e) => handleSubnoteChange(subnote._id, 'title', e.target.value)}
-                                                    onClick={(e) => e.stopPropagation()}
-                                                    onBlur={() => setEditingSubnoteId(null)}
-                                                    onKeyDown={(e) => {
-                                                        if (e.key === 'Enter') setEditingSubnoteId(null);
-                                                    }}
-                                                    className="font-semibold text-[15px] text-gray-900 dark:text-white bg-transparent border-none focus:ring-0 p-0 w-full"
-                                                    autoFocus
-                                                />
-                                            ) : (
-                                                <h4 
-                                                    className="font-semibold text-[15px] text-gray-900 dark:text-white truncate"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setEditingSubnoteId(subnote._id);
-                                                    }}
-                                                    title="Click to rename"
-                                                >
-                                                    {subnote.title || 'Untitled Subnote'}
-                                                </h4>
-                                            )}
-                                        </div>
-                                        <button
-                                            onClick={(e) => handleDeleteSubnote(subnote._id, e)}
-                                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-md transition-colors shrink-0 ml-1 opacity-0 group-hover:opacity-100"
-                                            title="Delete Subnote"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
-                                    </div>
-
-                                    {expandedSubnotes.has(subnote._id) && (
-                                        <div className="p-3 border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-950/30 animate-in slide-in-from-top-1 duration-200">
-                                            <textarea
-                                                value={subnote.content}
-                                                onChange={(e) => handleSubnoteChange(subnote._id, 'content', e.target.value)}
-                                                placeholder="Write your subnote content here..."
-                                                className="w-full min-h-[120px] resize-y bg-transparent text-gray-700 dark:text-gray-300 focus:outline-none placeholder-gray-400 leading-relaxed text-[14px]"
-                                                style={{ caretColor: '#3b82f6' }}
-                                                onClick={(e) => e.stopPropagation()}
-                                            />
-                                        </div>
-                                    )}
-                                </div>
+                                <SubnoteItem
+                                    key={subnote._id}
+                                    subnote={subnote}
+                                    isExpanded={expandedSubnotes.has(subnote._id)}
+                                    toggleExpand={toggleSubnoteExpand}
+                                    onUpdate={handleSubnoteChange}
+                                    onDelete={handleDeleteSubnote}
+                                    onMaximize={setMaximizedSubnoteId}
+                                />
                             ))
                         )}
                     </div>
+                </div>
+                </>
+            )}
+
+            {/* Maximized Subnote Modal */}
+            {maximizedSubnoteId && (
+                <div 
+                    className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-8 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300"
+                    onClick={() => setMaximizedSubnoteId(null)}
+                >
+                    <div 
+                        className="w-full max-w-5xl h-[85vh] bg-white dark:bg-gray-950 rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 border border-gray-200 dark:border-gray-800"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {subnotes.find(s => s._id === maximizedSubnoteId) && (
+                            <SubnoteItem
+                                subnote={subnotes.find(s => s._id === maximizedSubnoteId)}
+                                isExpanded={true}
+                                toggleExpand={() => {}}
+                                onUpdate={handleSubnoteChange}
+                                onDelete={handleDeleteSubnote}
+                                onMaximize={setMaximizedSubnoteId}
+                                isMaximized={true}
+                            />
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+function SubnoteItem({ subnote, isExpanded, toggleExpand, onUpdate, onDelete, onMaximize, isMaximized }) {
+    const [isEditingTitle, setIsEditingTitle] = useState(false);
+    const [useRawView, setUseRawView] = useState(false);
+    const [copied, setCopied] = useState(false);
+    const [isEditing, setIsEditing] = useState(!subnote.content);
+
+    const handleCopy = (e) => {
+        e.stopPropagation();
+        navigator.clipboard.writeText(subnote.content);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
+    return (
+        <div className={`border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm transition-all flex flex-col group ${isMaximized ? 'h-full w-full rounded-2xl shadow-2xl' : 'rounded-xl overflow-hidden'}`}>
+            <div 
+                className={`flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-900 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-colors ${isMaximized ? 'border-b border-gray-200 dark:border-gray-800' : ''}`}
+                onClick={() => !isMaximized && toggleExpand(subnote._id)}
+            >
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                    {!isMaximized && (
+                        isExpanded ? <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" /> : <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />
+                    )}
+                    
+                    {isEditingTitle ? (
+                        <input
+                            type="text"
+                            value={subnote.title}
+                            onChange={(e) => onUpdate(subnote._id, 'title', e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                            onBlur={() => setIsEditingTitle(false)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') setIsEditingTitle(false);
+                            }}
+                            className={`font-semibold text-gray-900 dark:text-white bg-transparent border-none focus:ring-0 p-0 w-full ${isMaximized ? 'text-xl' : 'text-[15px]'}`}
+                            autoFocus
+                        />
+                    ) : (
+                        <h4 
+                            className={`font-semibold text-gray-900 dark:text-white truncate ${isMaximized ? 'text-xl' : 'text-[15px]'}`}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setIsEditingTitle(true);
+                            }}
+                            title="Click to rename"
+                        >
+                            {subnote.title || 'Untitled Subnote'}
+                        </h4>
+                    )}
+                </div>
+                
+                <div className={`flex items-center gap-1 ${isMaximized ? '' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}>
+                    {(isExpanded || isMaximized) && (
+                        <>
+                            <button
+                                onClick={(e) => { e.stopPropagation(); setUseRawView(!useRawView); }}
+                                className={`p-1.5 rounded-md transition-colors ${useRawView ? 'text-blue-500 bg-blue-50 dark:bg-blue-500/10' : 'text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10'}`}
+                                title={useRawView ? "Styled View" : "Raw View"}
+                            >
+                                {useRawView ? <Type className="w-4 h-4" /> : <AlignLeft className="w-4 h-4" />}
+                            </button>
+                            <button
+                                onClick={(e) => { e.stopPropagation(); setIsEditing(!isEditing); }}
+                                className={`p-1.5 rounded-md transition-colors ${isEditing ? 'text-blue-500 bg-blue-50 dark:bg-blue-500/10' : 'text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10'}`}
+                                title={isEditing ? "Preview" : "Edit"}
+                            >
+                                {isEditing ? <Eye className="w-4 h-4" /> : <Edit2 className="w-4 h-4" />}
+                            </button>
+                            <button
+                                onClick={handleCopy}
+                                className="p-1.5 text-gray-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-500/10 rounded-md transition-colors"
+                                title="Copy Content"
+                            >
+                                {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                            </button>
+                            {!isMaximized && (
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); onMaximize(subnote._id); }}
+                                    className="p-1.5 text-gray-400 hover:text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-500/10 rounded-md transition-colors"
+                                    title="Open Large"
+                                >
+                                    <Maximize2 className="w-4 h-4" />
+                                </button>
+                            )}
+                        </>
+                    )}
+                    {!isMaximized && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onDelete(subnote._id, e); }}
+                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-md transition-colors"
+                            title="Delete Subnote"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                        </button>
+                    )}
+                    {isMaximized && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onMaximize(null); }}
+                            className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors ml-2"
+                            title="Close Window"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {(isExpanded || isMaximized) && (
+                <div className={`border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-950/30 flex-1 flex flex-col min-h-0 ${isMaximized ? 'p-6' : 'p-3'} animate-in slide-in-from-top-1 duration-200`}>
+                    {isEditing ? (
+                        <textarea
+                            value={subnote.content}
+                            onChange={(e) => onUpdate(subnote._id, 'content', e.target.value)}
+                            placeholder="Write your subnote content here..."
+                            className={`w-full resize-none bg-transparent text-gray-700 dark:text-gray-300 focus:outline-none placeholder-gray-400 leading-relaxed custom-scrollbar ${isMaximized ? 'h-full text-lg' : 'min-h-[120px] text-[14px]'}`}
+                            style={{ caretColor: '#3b82f6' }}
+                            onClick={(e) => e.stopPropagation()}
+                            autoFocus
+                        />
+                    ) : (
+                        <div 
+                            className={`overflow-y-auto custom-scrollbar prose dark:prose-invert max-w-none ${isMaximized ? 'h-full text-lg' : 'max-h-[300px] text-[14px]'}`}
+                            style={useRawView ? { whiteSpace: 'pre-wrap' } : {}}
+                            onDoubleClick={(e) => {
+                                e.stopPropagation();
+                                setIsEditing(true);
+                            }}
+                        >
+                            {useRawView ? (
+                                <div>{subnote.content || '*No content yet.*'}</div>
+                            ) : (
+                                <ReactMarkdown>{subnote.content || '*No content yet.*'}</ReactMarkdown>
+                            )}
+                        </div>
+                    )}
                 </div>
             )}
         </div>

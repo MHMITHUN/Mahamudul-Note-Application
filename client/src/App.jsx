@@ -134,6 +134,7 @@ function App() {
       if (data.success) {
         // Set the new chat as selected immediately
         setSelectedChat(data.chat);
+        window.history.replaceState({}, '', `?note=${data.chat._id}`);
         // Refresh the chat list from server to ensure consistency
         // This ensures the new chat appears in the correct folder context
         await fetchChats(selectedFolder);
@@ -158,6 +159,7 @@ function App() {
       if (data.success) {
         console.log('Setting selected chat:', data.chat);
         setSelectedChat(data.chat);
+        window.history.replaceState({}, '', `?note=${data.chat._id}`);
         setIsSidebarOpen(false); // Close sidebar on mobile after selection
 
         // Update the chat in the local list if it exists
@@ -214,6 +216,7 @@ function App() {
       if (data.success) {
         setChats(prev => prev.filter(c => c._id !== id));
         setSelectedChat(null);
+        window.history.replaceState({}, '', window.location.pathname);
       }
     } catch (err) {
       console.error('Delete failed:', err);
