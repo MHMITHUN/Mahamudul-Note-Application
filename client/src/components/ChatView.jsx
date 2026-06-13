@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Edit2, Eye, Trash2, Copy, Check, Clock, FileText, CheckCircle, AlertCircle, Menu, AlignLeft, Type, Share2 } from 'lucide-react';
+import { Edit2, Eye, Trash2, Copy, Check, Clock, FileText, CheckCircle, AlertCircle, Menu, AlignLeft, Type, Share2, Plus, ChevronDown, ChevronRight, Layers, X } from 'lucide-react';
 import Swal from 'sweetalert2';
 
 export default function ChatView({
@@ -15,19 +15,27 @@ export default function ChatView({
     const [isEditingTitle, setIsEditingTitle] = useState(false);
     const [content, setContent] = useState(chat?.content || '');
     const [title, setTitle] = useState(chat?.title || '');
+    const [subnotes, setSubnotes] = useState(chat?.subnotes || []);
+    const [expandedSubnotes, setExpandedSubnotes] = useState(new Set());
+    const [editingSubnoteId, setEditingSubnoteId] = useState(null);
     const [saving, setSaving] = useState(false);
     const [saveStatus, setSaveStatus] = useState('');
     const [copied, setCopied] = useState(false);
     const [shared, setShared] = useState(false);
     const [useRawView, setUseRawView] = useState(false); // Toggle between raw and styled preview
+    const [showSubnotesPanel, setShowSubnotesPanel] = useState(false);
     const autoSaveTimer = useRef(null);
+    const subnoteAutoSaveTimer = useRef({});
 
     useEffect(() => {
         setContent(chat?.content || '');
         setTitle(chat?.title || '');
+        setSubnotes(chat?.subnotes || []);
         setIsEditing(false);
         setIsEditingTitle(false);
-    }, [chat]);
+        setEditingSubnoteId(null);
+        setShowSubnotesPanel(false);
+    }, [chat?._id]);
 
     // Keyboard Shortcuts
     useEffect(() => {
@@ -141,6 +149,54 @@ export default function ChatView({
 
     const { words, readingTime } = getStats();
 
+    const generateObjectId = () => {
+        const timestamp = Math.floor(Date.now() / 1000).toString(16);
+        const randomHex = [...Array(16)].map(() => Math.floor(Math.random() * 16).toString(16)).join('');
+        return timestamp + randomHex;
+    };
+
+    const handleAddSubnote = async () => {
+        const newSubnote = {
+            _id: generateObjectId(),
+            title: 'Untitled Subnote',
+            content: ''
+        };
+        const newSubnotes = [...subnotes, newSubnote];
+        setSubnotes(newSubnotes);
+        setEditingSubnoteId(newSubnote._id);
+        setExpandedSubnotes(prev => new Set(prev).add(newSubnote._id));
+        await saveContent({ subnotes: newSubnotes });
+    };
+
+    const handleSubnoteChange = (id, field, value) => {
+        const updated = subnotes.map(sn => sn._id === id ? { ...sn, [field]: value } : sn);
+        setSubnotes(updated);
+        
+        if (subnoteAutoSaveTimer.current[id]) clearTimeout(subnoteAutoSaveTimer.current[id]);
+        setSaveStatus('Typing...');
+        subnoteAutoSaveTimer.current[id] = setTimeout(() => {
+            saveContent({ subnotes: updated });
+        }, 2000);
+    };
+
+    const handleDeleteSubnote = async (id, e) => {
+        e.stopPropagation();
+        if (!window.confirm('Delete this subnote?')) return;
+        const updated = subnotes.filter(sn => sn._id !== id);
+        setSubnotes(updated);
+        
+        await saveContent({ subnotes: updated });
+    };
+
+    const toggleSubnoteExpand = (id) => {
+        setExpandedSubnotes(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
     if (!chat) {
         return (
             <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-gray-950 transition-colors duration-300 relative">
@@ -176,9 +232,10 @@ export default function ChatView({
     }
 
     return (
-        <div className="flex-1 flex flex-col h-full bg-white dark:bg-gray-950 transition-colors duration-300 overflow-hidden">
-            {/* Header */}
-            <div className="px-4 sm:px-6 py-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between bg-white/80 dark:bg-gray-950/80 backdrop-blur-md sticky top-0 z-10">
+        <div className="flex-1 flex h-full overflow-hidden relative bg-white dark:bg-gray-950 transition-colors duration-300">
+            <div className="flex-1 flex flex-col h-full overflow-hidden relative">
+                {/* Header */}
+                <div className="px-4 sm:px-6 py-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between bg-white/80 dark:bg-gray-950/80 backdrop-blur-md sticky top-0 z-10">
                 <div className="flex items-center gap-3 flex-1 min-w-0 mr-2">
                     <button
                         onClick={onMenuClick}
@@ -241,6 +298,17 @@ export default function ChatView({
                 </div>
 
                 <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => setShowSubnotesPanel(!showSubnotesPanel)}
+                        className={`p-2 rounded-lg transition-all ${
+                            showSubnotesPanel 
+                                ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400' 
+                                : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800'
+                        }`}
+                        title="Toggle Subnotes"
+                    >
+                        <Layers className="w-5 h-5" />
+                    </button>
                     {!isEditing && (
                         <button
                             onClick={() => setUseRawView(!useRawView)}
@@ -341,7 +409,7 @@ export default function ChatView({
             </div>
 
             {/* Stats Bar */}
-            <div className="px-4 sm:px-6 py-2 bg-gray-50/50 dark:bg-gray-900/50 border-t border-gray-100 dark:border-gray-800 flex items-center gap-4 text-[10px] text-gray-400 font-medium">
+            <div className="px-4 sm:px-6 py-2 bg-gray-50/50 dark:bg-gray-900/50 border-t border-gray-100 dark:border-gray-800 flex items-center gap-4 text-[10px] text-gray-400 font-medium z-10">
                 <div className="flex items-center gap-1">
                     <FileText className="w-3 h-3" />
                     {words} words
@@ -355,6 +423,110 @@ export default function ChatView({
                     <span className="hidden sm:inline">Shift+Enter: Save</span>
                 </div>
             </div>
+            </div>
+
+            {/* Right Subnotes Panel */}
+            {showSubnotesPanel && (
+                <div className="w-80 md:w-96 shrink-0 border-l border-gray-200 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-900/80 backdrop-blur-xl flex flex-col h-full absolute right-0 top-0 bottom-0 z-20 shadow-[-10px_0_30px_-15px_rgba(0,0,0,0.1)] dark:shadow-[-10px_0_30px_-15px_rgba(0,0,0,0.5)] animate-in slide-in-from-right-8 duration-300">
+                    <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-800 bg-white/50 dark:bg-gray-950/50">
+                        <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                            <Layers className="w-5 h-5 text-blue-500" />
+                            Subnotes
+                            <span className="text-xs font-medium bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded-full">
+                                {subnotes.length}
+                            </span>
+                        </h3>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={handleAddSubnote}
+                                className="p-1.5 text-blue-600 hover:bg-blue-100 dark:text-blue-400 dark:hover:bg-blue-500/20 rounded-lg transition-colors"
+                                title="Add Subnote"
+                            >
+                                <Plus className="w-5 h-5" />
+                            </button>
+                            <button
+                                onClick={() => setShowSubnotesPanel(false)}
+                                className="p-1.5 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                                title="Close Panel"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+                        {subnotes.length === 0 ? (
+                            <div className="text-center py-10 text-gray-400 dark:text-gray-500 text-sm border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-2xl">
+                                <Layers className="w-8 h-8 mx-auto mb-3 opacity-20" />
+                                No subnotes yet.<br />Click the + icon to create one.
+                            </div>
+                        ) : (
+                            subnotes.map((subnote) => (
+                                <div key={subnote._id} className="border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden bg-white dark:bg-gray-900 shadow-sm transition-all group">
+                                    <div 
+                                        className="flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800/80 cursor-pointer transition-colors"
+                                        onClick={() => toggleSubnoteExpand(subnote._id)}
+                                    >
+                                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                                            {expandedSubnotes.has(subnote._id) ? (
+                                                <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />
+                                            ) : (
+                                                <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />
+                                            )}
+                                            
+                                            {editingSubnoteId === subnote._id ? (
+                                                <input
+                                                    type="text"
+                                                    value={subnote.title}
+                                                    onChange={(e) => handleSubnoteChange(subnote._id, 'title', e.target.value)}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    onBlur={() => setEditingSubnoteId(null)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') setEditingSubnoteId(null);
+                                                    }}
+                                                    className="font-semibold text-[15px] text-gray-900 dark:text-white bg-transparent border-none focus:ring-0 p-0 w-full"
+                                                    autoFocus
+                                                />
+                                            ) : (
+                                                <h4 
+                                                    className="font-semibold text-[15px] text-gray-900 dark:text-white truncate"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setEditingSubnoteId(subnote._id);
+                                                    }}
+                                                    title="Click to rename"
+                                                >
+                                                    {subnote.title || 'Untitled Subnote'}
+                                                </h4>
+                                            )}
+                                        </div>
+                                        <button
+                                            onClick={(e) => handleDeleteSubnote(subnote._id, e)}
+                                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-md transition-colors shrink-0 ml-1 opacity-0 group-hover:opacity-100"
+                                            title="Delete Subnote"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    </div>
+
+                                    {expandedSubnotes.has(subnote._id) && (
+                                        <div className="p-3 border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-950/30 animate-in slide-in-from-top-1 duration-200">
+                                            <textarea
+                                                value={subnote.content}
+                                                onChange={(e) => handleSubnoteChange(subnote._id, 'content', e.target.value)}
+                                                placeholder="Write your subnote content here..."
+                                                className="w-full min-h-[120px] resize-y bg-transparent text-gray-700 dark:text-gray-300 focus:outline-none placeholder-gray-400 leading-relaxed text-[14px]"
+                                                style={{ caretColor: '#3b82f6' }}
+                                                onClick={(e) => e.stopPropagation()}
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

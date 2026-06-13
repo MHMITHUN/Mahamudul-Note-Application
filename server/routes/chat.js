@@ -150,7 +150,7 @@ router.get('/:id', async (req, res) => {
 // Update chat (with auth-aware restrictions)
 router.put('/:id', optionalAuth, async (req, res) => {
     try {
-        const { content, title, isTitleManual, isPinned } = req.body;
+        const { content, title, isTitleManual, isPinned, subnotes } = req.body;
         const chat = await Chat.findById(req.params.id);
 
         if (!chat) {
@@ -168,7 +168,7 @@ router.put('/:id', optionalAuth, async (req, res) => {
 
         // RESTRICTION 2: If note is pinned, only admin can edit
         if (chat.isPinned && !isAdmin) {
-            if (content !== undefined || title !== undefined || isTitleManual !== undefined) {
+            if (content !== undefined || title !== undefined || isTitleManual !== undefined || subnotes !== undefined) {
                 return res.status(403).json({
                     error: 'This note is pinned. Only admin can edit pinned notes.'
                 });
@@ -180,6 +180,13 @@ router.put('/:id', optionalAuth, async (req, res) => {
         if (title !== undefined) chat.title = title;
         if (isTitleManual !== undefined) chat.isTitleManual = isTitleManual;
         if (isPinned !== undefined) chat.isPinned = isPinned;
+        if (subnotes !== undefined) {
+            // Update timestamps for modified subnotes
+            chat.subnotes = subnotes.map(sn => ({
+                ...sn,
+                updatedAt: Date.now()
+            }));
+        }
 
         await chat.save();
         res.json({ success: true, chat });

@@ -34,6 +34,25 @@ const ChatSchema = new mongoose.Schema(
             of: Date, // Map of sessionId/IP -> last viewed timestamp
             default: new Map(),
         },
+        subnotes: [{
+            title: {
+                type: String,
+                trim: true,
+                default: 'Untitled Subnote'
+            },
+            content: {
+                type: String,
+                default: ''
+            },
+            createdAt: {
+                type: Date,
+                default: Date.now
+            },
+            updatedAt: {
+                type: Date,
+                default: Date.now
+            }
+        }],
     },
     {
         timestamps: true,

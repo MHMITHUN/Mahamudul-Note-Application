@@ -25,7 +25,7 @@ export default function Sidebar({
     const [menuOpenId, setMenuOpenId] = useState(null);
     const [renamingId, setRenamingId] = useState(null);
     const [renameValue, setRenameValue] = useState('');
-    const [isFoldersExpanded, setIsFoldersExpanded] = useState(true);
+    const [isFoldersExpanded, setIsFoldersExpanded] = useState(false);
     const menuRef = useRef(null);
 
     useEffect(() => {
