@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Edit2, Eye, Trash2, Copy, Check, Clock, FileText, CheckCircle, AlertCircle, Menu, AlignLeft, Type, Share2, Plus, ChevronDown, ChevronRight, Layers, X, Maximize2 } from 'lucide-react';
+import { Edit2, Eye, Trash2, Copy, Check, Clock, FileText, CheckCircle, AlertCircle, Menu, AlignLeft, Type, Share2, Plus, ChevronDown, ChevronRight, Layers, X, Maximize2, Lock, Unlock } from 'lucide-react';
 import Swal from 'sweetalert2';
 
 export default function ChatView({
@@ -9,7 +9,9 @@ export default function ChatView({
     onUpdate,
     onDelete,
     loading,
-    onMenuClick
+    onMenuClick,
+    onManageSecurity = () => { },
+    onUnlockNote = () => { }
 }) {
     const [isEditing, setIsEditing] = useState(false);
     const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -41,9 +43,9 @@ export default function ChatView({
 
     // Keyboard Shortcuts
     useEffect(() => {
-        const handleKeyDown = (e) => {
-            if (!chat) return;
+        if (!chat || chat.isLocked) return;
 
+        const handleKeyDown = (e) => {
             // Ctrl + S to Save (already auto-saves, but good for habit)
             if ((e.ctrlKey || e.metaKey) && e.key === 's') {
                 e.preventDefault();
@@ -73,7 +75,7 @@ export default function ChatView({
         setSaveStatus('Typing...');
         autoSaveTimer.current = setTimeout(() => {
             saveContent({ content: newContent });
-        }, 5000); // Changed from 1000ms to 5000ms (5 seconds)
+        }, 5000); // 5 seconds
     };
 
     const handleTitleChange = (e) => {
@@ -94,7 +96,7 @@ export default function ChatView({
     };
 
     const saveContent = async (updates) => {
-        if (!chat) return;
+        if (!chat || chat.isLocked) return;
         setSaving(true);
         setSaveStatus('Saving...');
         try {
@@ -233,6 +235,46 @@ export default function ChatView({
         );
     }
 
+    // Locked Note View
+    if (chat.isLocked) {
+        return (
+            <div className="flex-1 flex flex-col h-full overflow-hidden relative bg-white dark:bg-gray-950 transition-colors duration-300">
+                <div className="px-4 sm:px-6 py-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between bg-white/80 dark:bg-gray-950/80 backdrop-blur-md sticky top-0 z-10">
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={onMenuClick}
+                            className="lg:hidden p-2 -ml-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                        >
+                            <Menu className="w-6 h-6" />
+                        </button>
+                        <h2 className="text-xl font-bold text-gray-900 dark:text-white truncate">
+                            {chat.title || 'Protected Note'}
+                        </h2>
+                    </div>
+                </div>
+
+                <div className="flex-1 flex flex-col items-center justify-center p-6 text-center animate-in fade-in zoom-in-95 duration-300">
+                    <div className="w-20 h-20 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-3xl flex items-center justify-center mb-5 shadow-2xl shadow-amber-500/10">
+                        <Lock className="w-10 h-10" />
+                    </div>
+                    <h3 className="text-2xl font-black text-gray-900 dark:text-white mb-2">
+                        {chat.title || 'Password Protected Note'}
+                    </h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 max-w-sm mb-6 leading-relaxed">
+                        This note is locked with a password. Enter the password to unlock, view, and edit its contents.
+                    </p>
+                    <button
+                        onClick={() => onUnlockNote(chat)}
+                        className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-lg shadow-blue-500/25 active:scale-95 transition-all flex items-center gap-2 text-base"
+                    >
+                        <Lock className="w-4 h-4" />
+                        <span>Unlock Note</span>
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="flex-1 flex h-full overflow-hidden relative bg-white dark:bg-gray-950 transition-colors duration-300">
             <div className="flex-1 flex flex-col h-full overflow-hidden relative">
@@ -257,13 +299,25 @@ export default function ChatView({
                                 autoFocus
                             />
                         ) : (
-                            <h2
-                                onClick={() => setIsEditingTitle(true)}
-                                className="text-xl font-bold text-gray-900 dark:text-white truncate cursor-pointer hover:text-blue-600 transition-colors"
-                                title="Click to rename"
-                            >
-                                {title || 'Untitled Note'}
-                            </h2>
+                            <div className="flex items-center gap-2">
+                                <h2
+                                    onClick={() => setIsEditingTitle(true)}
+                                    className="text-xl font-bold text-gray-900 dark:text-white truncate cursor-pointer hover:text-blue-600 transition-colors"
+                                    title="Click to rename"
+                                >
+                                    {title || 'Untitled Note'}
+                                </h2>
+                                {chat.isProtected && (
+                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider shrink-0 ${
+                                        isAdmin
+                                            ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40'
+                                            : 'bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/40'
+                                    }`}>
+                                        <Lock className="w-2.5 h-2.5" />
+                                        {isAdmin ? 'Protected (Admin View)' : 'Protected'}
+                                    </span>
+                                )}
+                            </div>
                         )}
                         <div className="flex flex-col gap-1">
                             <div className="flex items-center gap-2 text-[10px] text-gray-400 uppercase tracking-wider font-semibold">
@@ -299,7 +353,20 @@ export default function ChatView({
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 sm:gap-2">
+                    {/* Password Protection Action */}
+                    <button
+                        onClick={() => onManageSecurity(chat)}
+                        className={`p-2 rounded-lg transition-all ${
+                            chat.isProtected
+                                ? 'text-amber-500 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30'
+                                : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800'
+                        }`}
+                        title={chat.isProtected ? 'Password Protected (Click to manage password)' : 'Protect Note with Password'}
+                    >
+                        {chat.isProtected ? <Lock className="w-5 h-5" /> : <Unlock className="w-5 h-5" />}
+                    </button>
+
                     <button
                         onClick={() => setShowSubnotesPanel(!showSubnotesPanel)}
                         className={`p-2 rounded-lg transition-all ${

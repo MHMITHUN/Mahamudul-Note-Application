@@ -4,6 +4,8 @@ import ChatView from './components/ChatView';
 import ThemeToggle from './components/ThemeToggle';
 import CreateFolderModal from './components/CreateFolderModal';
 import FolderPasswordModal from './components/FolderPasswordModal';
+import NotePasswordModal from './components/NotePasswordModal';
+import NoteSecurityModal from './components/NoteSecurityModal';
 import { Loader2, User, MessageSquare, Eye, EyeOff } from 'lucide-react';
 
 function App() {
@@ -22,21 +24,36 @@ function App() {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordModalFolder, setPasswordModalFolder] = useState(null);
 
+  // Note Password Protection state
+  const [unlockedNotes, setUnlockedNotes] = useState(new Set());
+  const [unlockedNoteTokens, setUnlockedNoteTokens] = useState({});
+  const [showNotePasswordModal, setShowNotePasswordModal] = useState(false);
+  const [notePasswordModalChat, setNotePasswordModalChat] = useState(null);
+  const [showNoteSecurityModal, setShowNoteSecurityModal] = useState(false);
+  const [noteSecurityModalChat, setNoteSecurityModalChat] = useState(null);
+  const [noteSecurityInitialMode, setNoteSecurityInitialMode] = useState('set');
+
   useEffect(() => {
     // Initialize theme - default to dark mode
     const savedTheme = localStorage.getItem('theme');
 
     if (savedTheme === 'dark' || !savedTheme) {
-      // Dark mode if saved as dark OR no preference saved (default to dark)
       document.documentElement.classList.add('dark');
     } else {
-      // Light mode only if explicitly saved as light
       document.documentElement.classList.remove('dark');
     }
 
-    // IMPORTANT: Clear unlocked folders on page load for security
-    // Folders should always re-lock when you refresh the page
+    // Folders re-lock on refresh
     localStorage.removeItem('unlockedFolders');
+
+    // Restore note unlock tokens for current browser session
+    try {
+      const savedTokens = JSON.parse(sessionStorage.getItem('note_tokens') || '{}');
+      setUnlockedNoteTokens(savedTokens);
+      setUnlockedNotes(new Set(Object.keys(savedTokens)));
+    } catch (e) {
+      console.error('Failed to parse note tokens from sessionStorage', e);
+    }
 
     checkAuth();
     fetchFolders();
@@ -60,7 +77,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []); // No longer depends on chats
+  }, []);
 
   const checkAuth = async () => {
     try {
@@ -72,6 +89,9 @@ function App() {
       });
       const data = await res.json();
       setIsAdmin(data.isAdmin);
+      if (!data.isAdmin) {
+        localStorage.removeItem('token');
+      }
     } catch (err) {
       console.error('Auth check failed:', err);
     }
@@ -80,11 +100,6 @@ function App() {
   const fetchChats = async (folderId = selectedFolder) => {
     setLoading(true);
     try {
-      // If folderId is 'all', we fetch all public notes
-      // If folderId is null/undefined, we default to 'all' if not specified, 
-      // BUT if we explicitly want root, we should pass 'root'.
-      // However, the backend treats 'root' as null folder.
-
       let url;
       if (folderId === 'all') {
         url = '/api/chat/list?folderId=all';
@@ -94,7 +109,11 @@ function App() {
         url = `/api/chat/list?folderId=${folderId}`;
       }
 
-      const res = await fetch(url);
+      const token = localStorage.getItem('token');
+      const headers = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(url, { headers });
       const data = await res.json();
       if (data.success) {
         setChats(data.chats);
@@ -121,22 +140,22 @@ function App() {
   const handleNewChat = async () => {
     setActionLoading(true);
     try {
+      const token = localStorage.getItem('token');
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
       const res = await fetch('/api/chat/create', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           content: '# New Note\n\nStart typing your note here...',
-          // Convert 'all' to null (root folder) for note creation
           folderId: selectedFolder === 'all' ? null : selectedFolder
         })
       });
       const data = await res.json();
       if (data.success) {
-        // Set the new chat as selected immediately
         setSelectedChat(data.chat);
         window.history.replaceState({}, '', `?note=${data.chat._id}`);
-        // Refresh the chat list from server to ensure consistency
-        // This ensures the new chat appears in the correct folder context
         await fetchChats(selectedFolder);
       } else {
         alert('Failed to create note: ' + (data.error || 'Unknown error'));
@@ -149,29 +168,46 @@ function App() {
     }
   };
 
-  const handleSelectChat = async (id) => {
+  const handleSelectChat = async (id, tokenOverride = null) => {
     try {
-      console.log('Selecting chat:', id);
-      const res = await fetch(`/api/chat/${id}`);
+      const token = localStorage.getItem('token');
+      const headers = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const noteToken = tokenOverride || unlockedNoteTokens[id];
+      if (noteToken) headers['x-note-token'] = noteToken;
+
+      const res = await fetch(`/api/chat/${id}`, { headers });
       const data = await res.json();
-      console.log('Chat data received:', data);
 
       if (data.success) {
-        console.log('Setting selected chat:', data.chat);
+        // If the note is locked and user is not admin
+        if (data.isLocked && !isAdmin) {
+          setSelectedChat(data.chat);
+          setNotePasswordModalChat(data.chat);
+          setShowNotePasswordModal(true);
+          window.history.replaceState({}, '', `?note=${id}`);
+          setIsSidebarOpen(false);
+          return;
+        }
+
         setSelectedChat(data.chat);
         window.history.replaceState({}, '', `?note=${data.chat._id}`);
         setIsSidebarOpen(false); // Close sidebar on mobile after selection
 
-        // Update the chat in the local list if it exists
+        if (data.chat.isProtected) {
+          setUnlockedNotes(prev => new Set(prev).add(id));
+        }
+
+        // Update the chat in local list
         setChats(prev => {
           const existing = prev.find(c => c._id === id);
           if (existing) {
-            return prev.map(c => c._id === id ? data.chat : c);
+            return prev.map(c => c._id === id ? { ...existing, ...data.chat } : c);
           }
           return prev;
         });
       } else {
-        console.error('Failed to select chat - success is false:', data);
         alert('Failed to load note: ' + (data.error || 'Unknown error'));
       }
     } catch (err) {
@@ -180,10 +216,164 @@ function App() {
     }
   };
 
+  const handleVerifyNotePassword = async (chatId, password) => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(`/api/chat/${chatId}/verify`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ password })
+      });
+      const data = await res.json();
+
+      if (data.verified) {
+        if (data.noteToken) {
+          setUnlockedNoteTokens(prev => ({ ...prev, [chatId]: data.noteToken }));
+          try {
+            const saved = JSON.parse(sessionStorage.getItem('note_tokens') || '{}');
+            saved[chatId] = data.noteToken;
+            sessionStorage.setItem('note_tokens', JSON.stringify(saved));
+          } catch (e) {
+            console.error(e);
+          }
+        }
+
+        setUnlockedNotes(prev => new Set(prev).add(chatId));
+        setSelectedChat(data.chat);
+        window.history.replaceState({}, '', `?note=${chatId}`);
+
+        // Update chats list
+        setChats(prev => prev.map(c => c._id === chatId ? { ...c, isProtected: true, title: data.chat.title } : c));
+        setShowNotePasswordModal(false);
+        setNotePasswordModalChat(null);
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Password verification error:', err);
+      throw err;
+    }
+  };
+
+  const handleSaveNoteSecurity = async ({ chatId, mode, password, currentPassword }) => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(`/api/chat/${chatId}/password`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ password, currentPassword })
+      });
+      const data = await res.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to update password');
+      }
+
+      const Swal = (await import('sweetalert2')).default;
+
+      if (data.isProtected) {
+        // Note is now password protected (set or change)
+        if (data.noteToken) {
+          setUnlockedNoteTokens(prev => ({ ...prev, [chatId]: data.noteToken }));
+          try {
+            const saved = JSON.parse(sessionStorage.getItem('note_tokens') || '{}');
+            saved[chatId] = data.noteToken;
+            sessionStorage.setItem('note_tokens', JSON.stringify(saved));
+          } catch (e) {
+            console.error(e);
+          }
+        }
+        setUnlockedNotes(prev => new Set(prev).add(chatId));
+
+        // Update local state
+        setChats(prev => prev.map(c => c._id === chatId ? { ...c, isProtected: true } : c));
+        if (selectedChat && selectedChat._id === chatId) {
+          setSelectedChat(prev => ({ ...prev, isProtected: true }));
+        }
+
+        Swal.fire({
+          title: mode === 'change' ? 'Password Updated!' : 'Note Protected!',
+          text: mode === 'change' ? 'The note password was changed successfully.' : 'This note is now password protected.',
+          icon: 'success',
+          confirmButtonColor: '#3b82f6',
+          background: '#1f2937',
+          color: '#f3f4f6',
+          customClass: {
+            popup: 'rounded-2xl',
+            confirmButton: 'rounded-xl px-6 py-2.5 font-semibold shadow-lg'
+          }
+        });
+      } else {
+        // Password removed
+        setUnlockedNotes(prev => {
+          const next = new Set(prev);
+          next.delete(chatId);
+          return next;
+        });
+        setUnlockedNoteTokens(prev => {
+          const next = { ...prev };
+          delete next[chatId];
+          return next;
+        });
+        try {
+          const saved = JSON.parse(sessionStorage.getItem('note_tokens') || '{}');
+          delete saved[chatId];
+          sessionStorage.setItem('note_tokens', JSON.stringify(saved));
+        } catch (e) {
+          console.error(e);
+        }
+
+        // Update local state
+        setChats(prev => prev.map(c => c._id === chatId ? { ...c, isProtected: false } : c));
+        if (selectedChat && selectedChat._id === chatId) {
+          setSelectedChat(prev => ({ ...prev, isProtected: false }));
+        }
+
+        Swal.fire({
+          title: 'Protection Removed',
+          text: 'This note is now public and no longer password protected.',
+          icon: 'info',
+          confirmButtonColor: '#3b82f6',
+          background: '#1f2937',
+          color: '#f3f4f6',
+          customClass: {
+            popup: 'rounded-2xl',
+            confirmButton: 'rounded-xl px-6 py-2.5 font-semibold shadow-lg'
+          }
+        });
+      }
+
+      await fetchChats(selectedFolder);
+    } catch (err) {
+      console.error('Failed to update note security:', err);
+      throw err;
+    }
+  };
+
+  const handleOpenNoteSecurity = (chat, mode = 'set') => {
+    setNoteSecurityModalChat(chat);
+    setNoteSecurityInitialMode(mode);
+    setShowNoteSecurityModal(true);
+  };
+
+  const handleOpenUnlockModal = (chat) => {
+    setNotePasswordModalChat(chat);
+    setShowNotePasswordModal(true);
+  };
+
   const handleUpdateChat = async (id, updates) => {
     const token = localStorage.getItem('token');
     const headers = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const noteToken = unlockedNoteTokens[id];
+    if (noteToken) headers['x-note-token'] = noteToken;
 
     try {
       const res = await fetch(`/api/chat/${id}`, {
@@ -193,9 +383,10 @@ function App() {
       });
       const data = await res.json();
       if (data.success) {
-        // Update local state
         setChats(prev => prev.map(c => c._id === id ? { ...c, ...data.chat } : c));
         setSelectedChat(data.chat);
+      } else {
+        throw new Error(data.error || 'Failed to update note');
       }
     } catch (err) {
       console.error('Update failed:', err);
@@ -225,7 +416,6 @@ function App() {
 
   // Folder handlers
   const handleCreateFolder = async (folderData) => {
-    // Check for duplicate folder names (case-insensitive)
     const duplicateFolder = folders.find(
       f => f.name.toLowerCase() === folderData.name.toLowerCase()
     );
@@ -239,8 +429,8 @@ function App() {
         confirmButtonColor: '#3b82f6',
         confirmButtonText: 'OK',
         buttonsStyling: true,
-        background: '#1f2937', // Dark gray background
-        color: '#f3f4f6', // Light text
+        background: '#1f2937',
+        color: '#f3f4f6',
         customClass: {
           popup: 'rounded-2xl',
           confirmButton: 'rounded-xl px-6 py-3 font-semibold shadow-lg',
@@ -269,8 +459,6 @@ function App() {
   const handleFolderClick = async (folder) => {
     const folderId = folder._id;
 
-    // Clear unlocked folders when switching to a different folder (re-lock security)
-    // This ensures folders re-lock when you navigate away
     if (selectedFolder !== folderId) {
       setUnlockedFolders(new Set());
       localStorage.removeItem('unlockedFolders');
@@ -307,16 +495,13 @@ function App() {
       const data = await res.json();
 
       if (data.verified) {
-        // Add to unlocked set (only for current session)
         const newUnlocked = new Set(unlockedFolders);
         newUnlocked.add(folderId);
         setUnlockedFolders(newUnlocked);
 
-        // Select the folder
         setSelectedFolder(folderId);
         await fetchChats(folderId);
 
-        // Close the modal
         setShowPasswordModal(false);
         setPasswordModalFolder(null);
         return true;
@@ -352,6 +537,7 @@ function App() {
 
   const handleLogout = () => {
     localStorage.removeItem('token');
+    sessionStorage.removeItem('note_tokens');
     setIsAdmin(false);
     window.location.reload();
   };
@@ -369,7 +555,15 @@ function App() {
       <Sidebar
         chats={chats}
         selectedChatId={selectedChat?._id}
-        onSelectChat={handleSelectChat}
+        onSelectChat={(id) => {
+          const chat = chats.find(c => c._id === id);
+          if (chat?.isProtected && !isAdmin && !unlockedNotes.has(id)) {
+            setNotePasswordModalChat(chat);
+            setShowNotePasswordModal(true);
+          } else {
+            handleSelectChat(id);
+          }
+        }}
         onNewChat={() => {
           handleNewChat();
           setIsSidebarOpen(false);
@@ -387,6 +581,8 @@ function App() {
         onCreateFolder={() => setShowCreateFolderModal(true)}
         onDeleteFolder={handleDeleteFolder}
         unlockedFolders={unlockedFolders}
+        unlockedNotes={unlockedNotes}
+        onOpenPasswordModal={handleOpenNoteSecurity}
       />
 
       <main className="flex-1 relative overflow-hidden flex flex-col">
@@ -402,6 +598,8 @@ function App() {
             onDelete={handleDeleteChat}
             loading={actionLoading}
             onMenuClick={() => setIsSidebarOpen(true)}
+            onManageSecurity={(chat) => handleOpenNoteSecurity(chat, chat.isProtected ? 'change' : 'set')}
+            onUnlockNote={handleOpenUnlockModal}
           />
         )}
       </main>
@@ -417,6 +615,26 @@ function App() {
         folder={passwordModalFolder}
         onClose={() => setShowPasswordModal(false)}
         onVerify={handleVerifyFolderPassword}
+      />
+      <NotePasswordModal
+        isOpen={showNotePasswordModal}
+        chat={notePasswordModalChat}
+        onClose={() => {
+          setShowNotePasswordModal(false);
+          setNotePasswordModalChat(null);
+        }}
+        onVerify={handleVerifyNotePassword}
+      />
+      <NoteSecurityModal
+        isOpen={showNoteSecurityModal}
+        chat={noteSecurityModalChat}
+        initialMode={noteSecurityInitialMode}
+        isAdmin={isAdmin}
+        onClose={() => {
+          setShowNoteSecurityModal(false);
+          setNoteSecurityModalChat(null);
+        }}
+        onSave={handleSaveNoteSecurity}
       />
     </div>
   );

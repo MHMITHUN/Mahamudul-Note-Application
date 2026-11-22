@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Plus, MessageSquare, Search, LogOut, User, MoreVertical, Edit2, Trash2, Check, X, Pin, PinOff, Shield, Folder, Lock, Unlock, ChevronRight, ChevronDown } from 'lucide-react';
+import { Plus, MessageSquare, Search, LogOut, User, MoreVertical, Edit2, Trash2, Check, X, Pin, PinOff, Shield, Folder, Lock, Unlock, Key, ChevronRight, ChevronDown } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
 
 export default function Sidebar({
@@ -19,7 +19,9 @@ export default function Sidebar({
     onFolderClick = () => { },
     onCreateFolder = () => { },
     onDeleteFolder = () => { },
-    unlockedFolders = new Set()
+    unlockedFolders = new Set(),
+    unlockedNotes = new Set(),
+    onOpenPasswordModal = () => { }
 }) {
     const [searchQuery, setSearchQuery] = useState('');
     const [menuOpenId, setMenuOpenId] = useState(null);
@@ -196,104 +198,166 @@ export default function Sidebar({
 
                 {/* Chat List */}
                 <div className="flex-1 overflow-y-auto px-2 space-y-1 custom-scrollbar">
-                    {filteredChats.map(chat => (
-                        <div key={chat._id} className="relative group">
-                            {renamingId === chat._id ? (
-                                <div className="flex items-center gap-1 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
-                                    <input
-                                        autoFocus
-                                        type="text"
-                                        value={renameValue}
-                                        onChange={(e) => setRenameValue(e.target.value)}
-                                        onKeyDown={(e) => e.key === 'Enter' && handleRenameSave(chat._id)}
-                                        className="flex-1 bg-transparent border-none focus:ring-0 text-sm dark:text-white p-0"
-                                    />
-                                    <button onClick={() => handleRenameSave(chat._id)} className="p-1 text-green-500 hover:bg-green-100 dark:hover:bg-green-900/30 rounded">
-                                        <Check className="w-3 h-3" />
-                                    </button>
-                                    <button onClick={() => setRenamingId(null)} className="p-1 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded">
-                                        <X className="w-3 h-3" />
-                                    </button>
-                                </div>
-                            ) : (
-                                <>
-                                    <button
-                                        onClick={() => onSelectChat(chat._id)}
-                                        className={`w-full text-left p-3 rounded-xl transition-all group relative ${selectedChatId === chat._id
-                                            ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
-                                            : 'hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'
-                                            }`}
-                                    >
-                                        <div className="font-medium truncate pr-8 flex items-center gap-2">
-                                            {chat.isPinned && <Pin className="w-3 h-3 text-blue-500 fill-blue-500" />}
-                                            {chat.title || 'Untitled Note'}
-                                        </div>
-                                        <div className="text-[10px] opacity-60 mt-1">
-                                            {new Date(chat.updatedAt).toLocaleDateString(undefined, {
-                                                month: 'short',
-                                                day: 'numeric',
-                                                hour: '2-digit',
-                                                minute: '2-digit'
-                                            })}
-                                        </div>
-                                        {selectedChatId === chat._id && (
-                                            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-blue-600 rounded-r-full" />
-                                        )}
-                                    </button>
+                    {filteredChats.map(chat => {
+                        const isNoteUnlocked = isAdmin || unlockedNotes.has(chat._id);
 
-                                    {/* Menu button - OUTSIDE the chat button to avoid nesting */}
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setMenuOpenId(menuOpenId === chat._id ? null : chat._id);
-                                        }}
-                                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 opacity-0 group-hover:opacity-100 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-all"
-                                    >
-                                        <MoreVertical className="w-4 h-4" />
-                                    </button>
-                                </>
-                            )}
-
-                            {menuOpenId === chat._id && (
-                                <div
-                                    ref={menuRef}
-                                    className="absolute right-2 top-10 w-32 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-100 dark:border-gray-700 z-50 py-1 animate-in fade-in zoom-in duration-200"
-                                >
-                                    {isAdmin && (
+                        return (
+                            <div key={chat._id} className="relative group">
+                                {renamingId === chat._id ? (
+                                    <div className="flex items-center gap-1 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
+                                        <input
+                                            autoFocus
+                                            type="text"
+                                            value={renameValue}
+                                            onChange={(e) => setRenameValue(e.target.value)}
+                                            onKeyDown={(e) => e.key === 'Enter' && handleRenameSave(chat._id)}
+                                            className="flex-1 bg-transparent border-none focus:ring-0 text-sm dark:text-white p-0"
+                                        />
+                                        <button onClick={() => handleRenameSave(chat._id)} className="p-1 text-green-500 hover:bg-green-100 dark:hover:bg-green-900/30 rounded">
+                                            <Check className="w-3 h-3" />
+                                        </button>
+                                        <button onClick={() => setRenamingId(null)} className="p-1 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded">
+                                            <X className="w-3 h-3" />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <>
                                         <button
-                                            onClick={() => {
-                                                onUpdate(chat._id, { isPinned: !chat.isPinned });
-                                                setMenuOpenId(null);
+                                            onClick={() => onSelectChat(chat._id)}
+                                            className={`w-full text-left p-3 rounded-xl transition-all group relative ${selectedChatId === chat._id
+                                                ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
+                                                : 'hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'
+                                                }`}
+                                        >
+                                            <div className="font-medium truncate pr-8 flex items-center gap-2">
+                                                {chat.isPinned && <Pin className="w-3 h-3 text-blue-500 fill-blue-500 shrink-0" />}
+                                                {chat.isProtected && (
+                                                    isNoteUnlocked ? (
+                                                        <Unlock className="w-3.5 h-3.5 text-emerald-500 shrink-0" title="Password protected (Unlocked)" />
+                                                    ) : (
+                                                        <Lock className="w-3.5 h-3.5 text-amber-500 shrink-0" title="Password protected (Locked)" />
+                                                    )
+                                                )}
+                                                <span className="truncate">{chat.title || 'Untitled Note'}</span>
+                                            </div>
+                                            <div className="text-[10px] opacity-60 mt-1 flex items-center gap-2">
+                                                <span>
+                                                    {new Date(chat.updatedAt).toLocaleDateString(undefined, {
+                                                        month: 'short',
+                                                        day: 'numeric',
+                                                        hour: '2-digit',
+                                                        minute: '2-digit'
+                                                    })}
+                                                </span>
+                                                {chat.isProtected && (
+                                                    <span className={`px-1.5 py-0.2 rounded text-[9px] font-semibold tracking-wider ${
+                                                        isNoteUnlocked
+                                                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
+                                                            : 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400'
+                                                    }`}>
+                                                        {isNoteUnlocked ? 'UNLOCKED' : 'PROTECTED'}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            {selectedChatId === chat._id && (
+                                                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-blue-600 rounded-r-full" />
+                                            )}
+                                        </button>
+
+                                        {/* Menu button - OUTSIDE the chat button to avoid nesting */}
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setMenuOpenId(menuOpenId === chat._id ? null : chat._id);
                                             }}
+                                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 opacity-0 group-hover:opacity-100 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-all"
+                                            title="Note options"
+                                        >
+                                            <MoreVertical className="w-4 h-4" />
+                                        </button>
+                                    </>
+                                )}
+
+                                {menuOpenId === chat._id && (
+                                    <div
+                                        ref={menuRef}
+                                        className="absolute right-2 top-10 w-44 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-100 dark:border-gray-700 z-50 py-1 animate-in fade-in zoom-in duration-200"
+                                    >
+                                        {isAdmin && (
+                                            <button
+                                                onClick={() => {
+                                                    onUpdate(chat._id, { isPinned: !chat.isPinned });
+                                                    setMenuOpenId(null);
+                                                }}
+                                                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                                            >
+                                                {chat.isPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
+                                                {chat.isPinned ? 'Unpin' : 'Pin'}
+                                            </button>
+                                        )}
+
+                                        {/* Password Protection menu items */}
+                                        {!chat.isProtected ? (
+                                            <button
+                                                onClick={() => {
+                                                    setMenuOpenId(null);
+                                                    onOpenPasswordModal(chat, 'set');
+                                                }}
+                                                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
+                                            >
+                                                <Lock className="w-3.5 h-3.5" />
+                                                Password Protect
+                                            </button>
+                                        ) : (
+                                            <>
+                                                <button
+                                                    onClick={() => {
+                                                        setMenuOpenId(null);
+                                                        onOpenPasswordModal(chat, 'change');
+                                                    }}
+                                                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                                                >
+                                                    <Key className="w-3.5 h-3.5" />
+                                                    Change Password
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        setMenuOpenId(null);
+                                                        onOpenPasswordModal(chat, 'remove');
+                                                    }}
+                                                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                                >
+                                                    <Unlock className="w-3.5 h-3.5" />
+                                                    Remove Password
+                                                </button>
+                                            </>
+                                        )}
+
+                                        <button
+                                            onClick={() => handleRenameStart(chat)}
                                             className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                                         >
-                                            {chat.isPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
-                                            {chat.isPinned ? 'Unpin' : 'Pin'}
+                                            <Edit2 className="w-3.5 h-3.5" />
+                                            Rename
                                         </button>
-                                    )}
-                                    <button
-                                        onClick={() => handleRenameStart(chat)}
-                                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                                    >
-                                        <Edit2 className="w-3.5 h-3.5" />
-                                        Rename
-                                    </button>
-                                    {isAdmin && (
-                                        <button
-                                            onClick={() => {
-                                                onDelete(chat._id);
-                                                setMenuOpenId(null);
-                                            }}
-                                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                                        >
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                            Delete
-                                        </button>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    ))}
+
+                                        {isAdmin && (
+                                            <button
+                                                onClick={() => {
+                                                    onDelete(chat._id);
+                                                    setMenuOpenId(null);
+                                                }}
+                                                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                                Delete
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
                     {filteredChats.length === 0 && (
                         <div className="text-center py-10 text-gray-400 text-sm">
                             No notes found

@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import bcrypt from 'bcrypt';
 
 const ChatSchema = new mongoose.Schema(
     {
@@ -19,6 +20,14 @@ const ChatSchema = new mongoose.Schema(
             type: String,
             required: true,
             default: '',
+        },
+        password: {
+            type: String,
+            select: false, // Don't return password hash by default
+        },
+        isProtected: {
+            type: Boolean,
+            default: false,
         },
         folderId: {
             type: mongoose.Schema.Types.ObjectId,
@@ -63,13 +72,43 @@ const ChatSchema = new mongoose.Schema(
 ChatSchema.index({ title: 'text', content: 'text' });
 ChatSchema.index({ updatedAt: -1 });
 
-// Auto-generate title from first line if not manually set
-ChatSchema.pre('save', function (next) {
+// Auto-generate title from first line if not manually set & handle password hashing
+ChatSchema.pre('save', async function (next) {
     if (!this.isTitleManual && this.content) {
         const firstLine = this.content.split('\n')[0].replace(/[#*`]/g, '').trim();
         this.title = firstLine.substring(0, 50) || 'Untitled Note';
     }
-    next();
+
+    if (this.isModified('password')) {
+        if (!this.password) {
+            this.isProtected = false;
+            return next();
+        }
+        try {
+            const salt = await bcrypt.genSalt(10);
+            this.password = await bcrypt.hash(this.password, salt);
+            this.isProtected = true;
+            next();
+        } catch (error) {
+            next(error);
+        }
+    } else {
+        next();
+    }
 });
+
+// Method to verify password
+ChatSchema.methods.verifyPassword = async function (candidatePassword) {
+    if (!this.password) return true; // No password set
+    if (!candidatePassword) return false;
+    return await bcrypt.compare(candidatePassword, this.password);
+};
+
+// Remove password from JSON responses
+ChatSchema.methods.toJSON = function () {
+    const obj = this.toObject();
+    delete obj.password;
+    return obj;
+};
 
 export default mongoose.model('Chat', ChatSchema);
