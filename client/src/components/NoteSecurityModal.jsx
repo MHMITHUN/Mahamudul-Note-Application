@@ -85,43 +85,45 @@ export default function NoteSecurityModal({
             onClick={onClose}
         >
             <div
-                className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-md w-full p-6 border border-gray-100 dark:border-gray-800 animate-in zoom-in-95 duration-200"
+                className="relative overflow-hidden bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-md w-full p-6 border border-gray-100 dark:border-gray-800 animate-in zoom-in-95 duration-200"
                 onClick={(e) => e.stopPropagation()}
             >
-                {/* Header */}
-                <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                            mode === 'remove'
-                                ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
-                                : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-                        }`}>
-                            {mode === 'remove' ? (
-                                <Unlock className="w-6 h-6" />
-                            ) : mode === 'change' ? (
-                                <Key className="w-6 h-6" />
-                            ) : (
-                                <Lock className="w-6 h-6" />
-                            )}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                            <h2 className="text-xl font-bold text-gray-900 dark:text-white leading-tight">
-                                {mode === 'set' && 'Protect Note'}
-                                {mode === 'change' && 'Change Password'}
-                                {mode === 'remove' && 'Remove Password'}
-                            </h2>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5" title={chat.title}>
-                                {chat.title || 'Untitled Note'}
-                            </p>
-                        </div>
+                {/* Close Button cleanly positioned */}
+                <button
+                    onClick={onClose}
+                    className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors z-10"
+                    aria-label="Close"
+                >
+                    <X className="w-4 h-4" />
+                </button>
+
+                {/* Header with safe padding */}
+                <div className="flex items-center gap-3 pr-8 mb-4">
+                    <div className={`w-11 h-11 shrink-0 rounded-xl flex items-center justify-center border ${
+                        mode === 'remove'
+                            ? 'bg-red-500/10 border-red-500/20 text-red-500'
+                            : mode === 'change'
+                            ? 'bg-blue-500/10 border-blue-500/20 text-blue-500'
+                            : 'bg-amber-500/10 border-amber-500/20 text-amber-500'
+                    }`}>
+                        {mode === 'remove' ? (
+                            <Unlock className="w-5 h-5" />
+                        ) : mode === 'change' ? (
+                            <Key className="w-5 h-5" />
+                        ) : (
+                            <Lock className="w-5 h-5" />
+                        )}
                     </div>
-                    <button
-                        onClick={onClose}
-                        className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-                        aria-label="Close"
-                    >
-                        <X className="w-5 h-5" />
-                    </button>
+                    <div className="min-w-0 flex-1">
+                        <h2 className="text-lg font-bold text-gray-900 dark:text-white leading-snug">
+                            {mode === 'set' && 'Protect Note'}
+                            {mode === 'change' && 'Change Password'}
+                            {mode === 'remove' && 'Remove Password'}
+                        </h2>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5" title={chat.title}>
+                            {chat.title || 'Untitled Note'}
+                        </p>
+                    </div>
                 </div>
 
                 {/* Mode Selector for Protected Notes */}
@@ -168,8 +170,7 @@ export default function NoteSecurityModal({
                     </div>
                 )}
 
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    {/* Mode-specific explanations */}
+                <form onSubmit={handleSubmit} className="space-y-3.5">
                     {mode === 'set' && (
                         <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
                             Lock this note with a password. Anyone trying to view or edit this note will be required to enter this password. Admin can always view all notes.
@@ -185,7 +186,7 @@ export default function NoteSecurityModal({
                         </div>
                     )}
 
-                    {/* Current Password Field (for Change or Remove when not admin) */}
+                    {/* Current Password Field */}
                     {isProtected && !isAdmin && (mode === 'change' || mode === 'remove') && (
                         <div>
                             <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-300 mb-1.5">
@@ -196,7 +197,7 @@ export default function NoteSecurityModal({
                                     type={showCurrent ? 'text' : 'password'}
                                     value={currentPassword}
                                     onChange={(e) => setCurrentPassword(e.target.value)}
-                                    className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 text-gray-900 dark:text-white transition-all outline-none pr-11 text-sm"
+                                    className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700/80 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 text-gray-900 dark:text-white transition-all outline-none pr-11 text-sm placeholder:text-gray-400"
                                     placeholder="Enter current password"
                                     required
                                 />
@@ -212,7 +213,7 @@ export default function NoteSecurityModal({
                         </div>
                     )}
 
-                    {/* New Password & Confirm Password (for Set or Change) */}
+                    {/* New Password & Confirm Password */}
                     {(mode === 'set' || mode === 'change') && (
                         <>
                             <div>
@@ -224,7 +225,7 @@ export default function NoteSecurityModal({
                                         type={showNew ? 'text' : 'password'}
                                         value={newPassword}
                                         onChange={(e) => setNewPassword(e.target.value)}
-                                        className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 text-gray-900 dark:text-white transition-all outline-none pr-11 text-sm"
+                                        className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700/80 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 text-gray-900 dark:text-white transition-all outline-none pr-11 text-sm placeholder:text-gray-400"
                                         placeholder="Enter password"
                                         required
                                         autoFocus={mode === 'set' || isAdmin}
@@ -249,7 +250,7 @@ export default function NoteSecurityModal({
                                         type={showConfirm ? 'text' : 'password'}
                                         value={confirmPassword}
                                         onChange={(e) => setConfirmPassword(e.target.value)}
-                                        className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 text-gray-900 dark:text-white transition-all outline-none pr-11 text-sm"
+                                        className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700/80 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 text-gray-900 dark:text-white transition-all outline-none pr-11 text-sm placeholder:text-gray-400"
                                         placeholder="Confirm password"
                                         required
                                     />
@@ -272,7 +273,7 @@ export default function NoteSecurityModal({
                         </p>
                     )}
 
-                    <div className="flex gap-3 pt-2">
+                    <div className="flex gap-2.5 pt-2">
                         <button
                             type="button"
                             onClick={onClose}
@@ -283,7 +284,7 @@ export default function NoteSecurityModal({
                         <button
                             type="submit"
                             disabled={loading}
-                            className={`flex-1 px-4 py-2.5 rounded-xl font-semibold text-white transition-all shadow-md flex items-center justify-center gap-2 text-sm disabled:opacity-50 ${
+                            className={`flex-1 px-4 py-2.5 rounded-xl font-semibold text-white transition-all shadow-md flex items-center justify-center gap-2 text-sm disabled:opacity-50 active:scale-95 ${
                                 mode === 'remove'
                                     ? 'bg-red-600 hover:bg-red-700 shadow-red-500/20'
                                     : 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/20'

@@ -25,6 +25,7 @@ function App() {
   const [passwordModalFolder, setPasswordModalFolder] = useState(null);
 
   // Note Password Protection state
+  // High Security: Cleared on refresh so notes re-lock if page is refreshed or reopened
   const [unlockedNotes, setUnlockedNotes] = useState(new Set());
   const [unlockedNoteTokens, setUnlockedNoteTokens] = useState({});
   const [showNotePasswordModal, setShowNotePasswordModal] = useState(false);
@@ -43,17 +44,9 @@ function App() {
       document.documentElement.classList.remove('dark');
     }
 
-    // Folders re-lock on refresh
+    // Security: Folders and Notes re-lock on page refresh / reload
     localStorage.removeItem('unlockedFolders');
-
-    // Restore note unlock tokens for current browser session
-    try {
-      const savedTokens = JSON.parse(sessionStorage.getItem('note_tokens') || '{}');
-      setUnlockedNoteTokens(savedTokens);
-      setUnlockedNotes(new Set(Object.keys(savedTokens)));
-    } catch (e) {
-      console.error('Failed to parse note tokens from sessionStorage', e);
-    }
+    sessionStorage.removeItem('note_tokens');
 
     checkAuth();
     fetchFolders();
@@ -183,17 +176,18 @@ function App() {
       if (data.success) {
         // If the note is locked and user is not admin
         if (data.isLocked && !isAdmin) {
-          setSelectedChat(data.chat);
-          setNotePasswordModalChat(data.chat);
-          setShowNotePasswordModal(true);
+          const lockedChat = { ...data.chat, isLocked: true };
+          setSelectedChat(lockedChat);
+          setNotePasswordModalChat(lockedChat);
           window.history.replaceState({}, '', `?note=${id}`);
           setIsSidebarOpen(false);
           return;
         }
 
-        setSelectedChat(data.chat);
+        const unlockedChat = { ...data.chat, isLocked: false };
+        setSelectedChat(unlockedChat);
         window.history.replaceState({}, '', `?note=${data.chat._id}`);
-        setIsSidebarOpen(false); // Close sidebar on mobile after selection
+        setIsSidebarOpen(false);
 
         if (data.chat.isProtected) {
           setUnlockedNotes(prev => new Set(prev).add(id));
@@ -232,17 +226,11 @@ function App() {
       if (data.verified) {
         if (data.noteToken) {
           setUnlockedNoteTokens(prev => ({ ...prev, [chatId]: data.noteToken }));
-          try {
-            const saved = JSON.parse(sessionStorage.getItem('note_tokens') || '{}');
-            saved[chatId] = data.noteToken;
-            sessionStorage.setItem('note_tokens', JSON.stringify(saved));
-          } catch (e) {
-            console.error(e);
-          }
         }
 
         setUnlockedNotes(prev => new Set(prev).add(chatId));
-        setSelectedChat(data.chat);
+        const fullChat = { ...data.chat, isLocked: false };
+        setSelectedChat(fullChat);
         window.history.replaceState({}, '', `?note=${chatId}`);
 
         // Update chats list
@@ -255,6 +243,28 @@ function App() {
     } catch (err) {
       console.error('Password verification error:', err);
       throw err;
+    }
+  };
+
+  // Lock a note immediately
+  const handleLockNote = (chatId) => {
+    setUnlockedNotes(prev => {
+      const next = new Set(prev);
+      next.delete(chatId);
+      return next;
+    });
+    setUnlockedNoteTokens(prev => {
+      const next = { ...prev };
+      delete next[chatId];
+      return next;
+    });
+
+    if (selectedChat && selectedChat._id === chatId) {
+      setSelectedChat(prev => ({
+        ...prev,
+        isLocked: true,
+        content: ''
+      }));
     }
   };
 
@@ -278,23 +288,15 @@ function App() {
       const Swal = (await import('sweetalert2')).default;
 
       if (data.isProtected) {
-        // Note is now password protected (set or change)
         if (data.noteToken) {
           setUnlockedNoteTokens(prev => ({ ...prev, [chatId]: data.noteToken }));
-          try {
-            const saved = JSON.parse(sessionStorage.getItem('note_tokens') || '{}');
-            saved[chatId] = data.noteToken;
-            sessionStorage.setItem('note_tokens', JSON.stringify(saved));
-          } catch (e) {
-            console.error(e);
-          }
         }
         setUnlockedNotes(prev => new Set(prev).add(chatId));
 
         // Update local state
         setChats(prev => prev.map(c => c._id === chatId ? { ...c, isProtected: true } : c));
         if (selectedChat && selectedChat._id === chatId) {
-          setSelectedChat(prev => ({ ...prev, isProtected: true }));
+          setSelectedChat(prev => ({ ...prev, isProtected: true, isLocked: false }));
         }
 
         Swal.fire({
@@ -321,18 +323,11 @@ function App() {
           delete next[chatId];
           return next;
         });
-        try {
-          const saved = JSON.parse(sessionStorage.getItem('note_tokens') || '{}');
-          delete saved[chatId];
-          sessionStorage.setItem('note_tokens', JSON.stringify(saved));
-        } catch (e) {
-          console.error(e);
-        }
 
         // Update local state
-        setChats(prev => prev.map(c => c._id === chatId ? { ...c, isProtected: false } : c));
+        setChats(prev => prev.map(c => c._id === chatId ? { ...c, isProtected: false, isLocked: false } : c));
         if (selectedChat && selectedChat._id === chatId) {
-          setSelectedChat(prev => ({ ...prev, isProtected: false }));
+          setSelectedChat(prev => ({ ...prev, isProtected: false, isLocked: false }));
         }
 
         Swal.fire({
@@ -538,6 +533,8 @@ function App() {
   const handleLogout = () => {
     localStorage.removeItem('token');
     sessionStorage.removeItem('note_tokens');
+    setUnlockedNotes(new Set());
+    setUnlockedNoteTokens({});
     setIsAdmin(false);
     window.location.reload();
   };
@@ -558,8 +555,12 @@ function App() {
         onSelectChat={(id) => {
           const chat = chats.find(c => c._id === id);
           if (chat?.isProtected && !isAdmin && !unlockedNotes.has(id)) {
+            // Set as locked selected chat immediately so ChatView renders locked view
+            setSelectedChat({ ...chat, isLocked: true });
             setNotePasswordModalChat(chat);
             setShowNotePasswordModal(true);
+            window.history.replaceState({}, '', `?note=${id}`);
+            setIsSidebarOpen(false);
           } else {
             handleSelectChat(id);
           }
@@ -583,6 +584,7 @@ function App() {
         unlockedFolders={unlockedFolders}
         unlockedNotes={unlockedNotes}
         onOpenPasswordModal={handleOpenNoteSecurity}
+        onLockNote={handleLockNote}
       />
 
       <main className="flex-1 relative overflow-hidden flex flex-col">
@@ -599,7 +601,14 @@ function App() {
             loading={actionLoading}
             onMenuClick={() => setIsSidebarOpen(true)}
             onManageSecurity={(chat) => handleOpenNoteSecurity(chat, chat.isProtected ? 'change' : 'set')}
-            onUnlockNote={handleOpenUnlockModal}
+            onUnlockNote={(chat, pwd) => {
+              if (pwd) {
+                return handleVerifyNotePassword(chat._id, pwd);
+              }
+              handleOpenUnlockModal(chat);
+            }}
+            onLockNote={handleLockNote}
+            unlockedNotes={unlockedNotes}
           />
         )}
       </main>

@@ -180,6 +180,7 @@ router.get('/:id', optionalAuth, async (req, res) => {
                     _id: chat._id,
                     title: chat.title,
                     isProtected: true,
+                    isLocked: true,
                     isPinned: chat.isPinned,
                     folderId: chat.folderId,
                     viewCount: chat.viewCount || 0,
@@ -208,9 +209,12 @@ router.get('/:id', optionalAuth, async (req, res) => {
             await chat.save();
         }
 
+        const chatObj = chat.toObject();
+        chatObj.isLocked = false;
+
         res.json({
             success: true,
-            chat,
+            chat: chatObj,
             isProtected: chat.isProtected || false,
             isLocked: false
         });
@@ -236,12 +240,16 @@ router.post('/:id/verify', optionalAuth, async (req, res) => {
                 process.env.JWT_SECRET,
                 { expiresIn: '7d' }
             );
-            return res.json({ success: true, verified: true, chat, noteToken });
+            const chatObj = chat.toObject();
+            chatObj.isLocked = false;
+            return res.json({ success: true, verified: true, chat: chatObj, noteToken });
         }
 
         // If not protected
         if (!chat.isProtected) {
-            return res.json({ success: true, verified: true, chat });
+            const chatObj = chat.toObject();
+            chatObj.isLocked = false;
+            return res.json({ success: true, verified: true, chat: chatObj });
         }
 
         // Verify password
@@ -253,7 +261,9 @@ router.post('/:id/verify', optionalAuth, async (req, res) => {
                 process.env.JWT_SECRET,
                 { expiresIn: '7d' }
             );
-            res.json({ success: true, verified: true, chat, noteToken });
+            const chatObj = chat.toObject();
+            chatObj.isLocked = false;
+            res.json({ success: true, verified: true, chat: chatObj, noteToken });
         } else {
             res.status(401).json({ success: false, verified: false, error: 'Incorrect password' });
         }
@@ -297,12 +307,15 @@ router.post('/:id/password', optionalAuth, async (req, res) => {
                 { expiresIn: '7d' }
             );
 
+            const chatObj = chat.toObject();
+            chatObj.isLocked = false;
+
             return res.json({
                 success: true,
                 message: 'Password set successfully',
                 isProtected: true,
                 noteToken,
-                chat
+                chat: chatObj
             });
         } else {
             // Removing password
@@ -310,11 +323,14 @@ router.post('/:id/password', optionalAuth, async (req, res) => {
             chat.isProtected = false;
             await chat.save();
 
+            const chatObj = chat.toObject();
+            chatObj.isLocked = false;
+
             return res.json({
                 success: true,
                 message: 'Password protection removed',
                 isProtected: false,
-                chat
+                chat: chatObj
             });
         }
     } catch (error) {
@@ -370,7 +386,9 @@ router.put('/:id', optionalAuth, async (req, res) => {
         }
 
         await chat.save();
-        res.json({ success: true, chat });
+        const chatObj = chat.toObject();
+        chatObj.isLocked = false;
+        res.json({ success: true, chat: chatObj });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

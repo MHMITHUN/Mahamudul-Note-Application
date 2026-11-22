@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Edit2, Eye, Trash2, Copy, Check, Clock, FileText, CheckCircle, AlertCircle, Menu, AlignLeft, Type, Share2, Plus, ChevronDown, ChevronRight, Layers, X, Maximize2, Lock, Unlock } from 'lucide-react';
+import { Edit2, Eye, EyeOff, Trash2, Copy, Check, Clock, FileText, CheckCircle, AlertCircle, Menu, AlignLeft, Type, Share2, Plus, ChevronDown, ChevronRight, Layers, X, Maximize2, Lock, Unlock, Key, Loader2, Shield } from 'lucide-react';
 import Swal from 'sweetalert2';
 
 export default function ChatView({
@@ -11,8 +11,17 @@ export default function ChatView({
     loading,
     onMenuClick,
     onManageSecurity = () => { },
-    onUnlockNote = () => { }
+    onUnlockNote = () => { },
+    onLockNote = () => { },
+    unlockedNotes = new Set()
 }) {
+    const isLocked = Boolean(
+        chat && (
+            chat.isLocked === true ||
+            (chat.isProtected && !isAdmin && !unlockedNotes.has(chat._id))
+        )
+    );
+
     const [isEditing, setIsEditing] = useState(false);
     const [isEditingTitle, setIsEditingTitle] = useState(false);
     const [content, setContent] = useState(chat?.content || '');
@@ -24,11 +33,17 @@ export default function ChatView({
     const [saveStatus, setSaveStatus] = useState('');
     const [copied, setCopied] = useState(false);
     const [shared, setShared] = useState(false);
-    const [useRawView, setUseRawView] = useState(false); // Toggle between raw and styled preview
+    const [useRawView, setUseRawView] = useState(false);
     const [showSubnotesPanel, setShowSubnotesPanel] = useState(false);
     const [maximizedSubnoteId, setMaximizedSubnoteId] = useState(null);
     const autoSaveTimer = useRef(null);
     const subnoteAutoSaveTimer = useRef({});
+
+    // Inline unlock form state
+    const [inlinePassword, setInlinePassword] = useState('');
+    const [showInlinePassword, setShowInlinePassword] = useState(false);
+    const [inlineUnlockLoading, setInlineUnlockLoading] = useState(false);
+    const [inlineUnlockError, setInlineUnlockError] = useState('');
 
     useEffect(() => {
         setContent(chat?.content || '');
@@ -39,24 +54,23 @@ export default function ChatView({
         setEditingSubnoteId(null);
         setShowSubnotesPanel(false);
         setMaximizedSubnoteId(null);
-    }, [chat?._id]);
+        setInlinePassword('');
+        setInlineUnlockError('');
+    }, [chat?._id, isLocked]);
 
     // Keyboard Shortcuts
     useEffect(() => {
-        if (!chat || chat.isLocked) return;
+        if (!chat || isLocked) return;
 
         const handleKeyDown = (e) => {
-            // Ctrl + S to Save (already auto-saves, but good for habit)
             if ((e.ctrlKey || e.metaKey) && e.key === 's') {
                 e.preventDefault();
                 saveContent({ content });
             }
-            // Ctrl + E to Toggle Edit
             if ((e.ctrlKey || e.metaKey) && e.key === 'e') {
                 e.preventDefault();
                 setIsEditing(!isEditing);
             }
-            // Shift + Enter to Save (Enter alone creates new lines)
             if (e.shiftKey && e.key === 'Enter' && !e.ctrlKey && !e.metaKey) {
                 e.preventDefault();
                 saveContent({ content });
@@ -65,7 +79,7 @@ export default function ChatView({
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [chat, content, isEditing]);
+    }, [chat, content, isEditing, isLocked]);
 
     const handleContentChange = (e) => {
         const newContent = e.target.value;
@@ -75,7 +89,7 @@ export default function ChatView({
         setSaveStatus('Typing...');
         autoSaveTimer.current = setTimeout(() => {
             saveContent({ content: newContent });
-        }, 5000); // 5 seconds
+        }, 5000);
     };
 
     const handleTitleChange = (e) => {
@@ -84,7 +98,7 @@ export default function ChatView({
 
     const handleTitleBlur = () => {
         setIsEditingTitle(false);
-        if (title !== chat.title) {
+        if (title !== chat?.title) {
             saveContent({ title, isTitleManual: true });
         }
     };
@@ -96,7 +110,7 @@ export default function ChatView({
     };
 
     const saveContent = async (updates) => {
-        if (!chat || chat.isLocked) return;
+        if (!chat || isLocked) return;
         setSaving(true);
         setSaveStatus('Saving...');
         try {
@@ -124,9 +138,8 @@ export default function ChatView({
         setTimeout(() => setShared(false), 2000);
     };
 
-    // Double-tap to edit handler
     const handleDoubleClick = () => {
-        // Only allow edit if not pinned OR user is admin
+        if (isLocked) return;
         if (!chat.isPinned || isAdmin) {
             setIsEditing(true);
         } else {
@@ -145,9 +158,33 @@ export default function ChatView({
         }
     };
 
+    const handleInlineUnlockSubmit = async (e) => {
+        e.preventDefault();
+        if (!inlinePassword) {
+            setInlineUnlockError('Please enter password');
+            return;
+        }
+
+        setInlineUnlockError('');
+        setInlineUnlockLoading(true);
+
+        try {
+            const success = await onUnlockNote(chat, inlinePassword);
+            if (!success) {
+                setInlineUnlockError('Incorrect password. Please try again.');
+            } else {
+                setInlinePassword('');
+            }
+        } catch (err) {
+            setInlineUnlockError(err.message || 'Incorrect password');
+        } finally {
+            setInlineUnlockLoading(false);
+        }
+    };
+
     const getStats = () => {
         const words = content.trim() ? content.trim().split(/\s+/).length : 0;
-        const readingTime = Math.ceil(words / 200); // Average 200 wpm
+        const readingTime = Math.ceil(words / 200);
         return { words, readingTime };
     };
 
@@ -188,7 +225,6 @@ export default function ChatView({
         if (!window.confirm('Delete this subnote?')) return;
         const updated = subnotes.filter(sn => sn._id !== id);
         setSubnotes(updated);
-        
         await saveContent({ subnotes: updated });
     };
 
@@ -204,7 +240,6 @@ export default function ChatView({
     if (!chat) {
         return (
             <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-gray-950 transition-colors duration-300 relative">
-                {/* Hamburger menu for mobile when no chat selected */}
                 <button
                     onClick={onMenuClick}
                     className="lg:hidden absolute top-4 left-4 p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors z-10"
@@ -236,40 +271,101 @@ export default function ChatView({
     }
 
     // Locked Note View
-    if (chat.isLocked) {
+    if (isLocked) {
         return (
             <div className="flex-1 flex flex-col h-full overflow-hidden relative bg-white dark:bg-gray-950 transition-colors duration-300">
+                {/* Header */}
                 <div className="px-4 sm:px-6 py-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between bg-white/80 dark:bg-gray-950/80 backdrop-blur-md sticky top-0 z-10">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 flex-1 min-w-0 mr-2">
                         <button
                             onClick={onMenuClick}
                             className="lg:hidden p-2 -ml-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
                         >
                             <Menu className="w-6 h-6" />
                         </button>
-                        <h2 className="text-xl font-bold text-gray-900 dark:text-white truncate">
-                            {chat.title || 'Protected Note'}
-                        </h2>
+                        <div className="flex flex-col flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                                <h2 className="text-xl font-bold text-gray-900 dark:text-white truncate">
+                                    {chat.title || 'Untitled Note'}
+                                </h2>
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 shrink-0">
+                                    <Lock className="w-2.5 h-2.5" />
+                                    Locked
+                                </span>
+                            </div>
+                            <span className="text-[10px] text-gray-400 font-medium">
+                                Password protected note
+                            </span>
+                        </div>
                     </div>
                 </div>
 
-                <div className="flex-1 flex flex-col items-center justify-center p-6 text-center animate-in fade-in zoom-in-95 duration-300">
-                    <div className="w-20 h-20 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-3xl flex items-center justify-center mb-5 shadow-2xl shadow-amber-500/10">
-                        <Lock className="w-10 h-10" />
+                {/* Inline Unlock Screen */}
+                <div className="flex-1 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+                    <div className="w-full max-w-sm bg-white dark:bg-gray-900/90 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-800 p-6 sm:p-8 animate-in fade-in zoom-in-95 duration-200 text-center">
+                        <div className="w-14 h-14 bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-amber-500/10">
+                            <Lock className="w-7 h-7" />
+                        </div>
+                        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-1.5">
+                            This Note is Locked
+                        </h3>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed mb-6">
+                            Enter the password to unlock, view, and edit its contents.
+                        </p>
+
+                        <form onSubmit={handleInlineUnlockSubmit} className="space-y-4 text-left">
+                            <div>
+                                <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">
+                                    Password
+                                </label>
+                                <div className="relative">
+                                    <input
+                                        type={showInlinePassword ? 'text' : 'password'}
+                                        value={inlinePassword}
+                                        onChange={(e) => {
+                                            setInlinePassword(e.target.value);
+                                            setInlineUnlockError('');
+                                        }}
+                                        className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700/80 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 text-gray-900 dark:text-white transition-all outline-none pr-11 text-sm placeholder:text-gray-400"
+                                        placeholder="••••••••"
+                                        required
+                                        autoFocus
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowInlinePassword(!showInlinePassword)}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1"
+                                        tabIndex={-1}
+                                    >
+                                        {showInlinePassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                    </button>
+                                </div>
+                                {inlineUnlockError && (
+                                    <p className="mt-2 text-xs font-medium text-red-500 dark:text-red-400 animate-in fade-in duration-200">
+                                        {inlineUnlockError}
+                                    </p>
+                                )}
+                            </div>
+
+                            <button
+                                type="submit"
+                                disabled={inlineUnlockLoading}
+                                className="w-full py-2.5 rounded-xl font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 transition-all shadow-md shadow-blue-500/25 flex items-center justify-center gap-2 text-sm active:scale-95"
+                            >
+                                {inlineUnlockLoading ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        <span>Unlocking...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Unlock className="w-4 h-4" />
+                                        <span>Unlock Note</span>
+                                    </>
+                                )}
+                            </button>
+                        </form>
                     </div>
-                    <h3 className="text-2xl font-black text-gray-900 dark:text-white mb-2">
-                        {chat.title || 'Password Protected Note'}
-                    </h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 max-w-sm mb-6 leading-relaxed">
-                        This note is locked with a password. Enter the password to unlock, view, and edit its contents.
-                    </p>
-                    <button
-                        onClick={() => onUnlockNote(chat)}
-                        className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-lg shadow-blue-500/25 active:scale-95 transition-all flex items-center gap-2 text-base"
-                    >
-                        <Lock className="w-4 h-4" />
-                        <span>Unlock Note</span>
-                    </button>
                 </div>
             </div>
         );
@@ -308,13 +404,13 @@ export default function ChatView({
                                     {title || 'Untitled Note'}
                                 </h2>
                                 {chat.isProtected && (
-                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider shrink-0 ${
+                                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider shrink-0 ${
                                         isAdmin
-                                            ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40'
-                                            : 'bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/40'
+                                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                                            : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
                                     }`}>
-                                        <Lock className="w-2.5 h-2.5" />
-                                        {isAdmin ? 'Protected (Admin View)' : 'Protected'}
+                                        <Unlock className="w-2.5 h-2.5" />
+                                        {isAdmin ? 'Admin View' : 'Unlocked'}
                                     </span>
                                 )}
                             </div>
@@ -354,22 +450,34 @@ export default function ChatView({
                 </div>
 
                 <div className="flex items-center gap-1 sm:gap-2">
-                    {/* Password Protection Action */}
+                    {/* Instant Lock Button (when protected note is currently unlocked) */}
+                    {chat.isProtected && !isAdmin && (
+                        <button
+                            onClick={() => onLockNote(chat._id)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 border border-amber-500/20 transition-all shadow-sm active:scale-95"
+                            title="Lock this note immediately"
+                        >
+                            <Lock className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">Lock Note</span>
+                        </button>
+                    )}
+
+                    {/* Manage Security (Change / Remove Password or Protect Note) */}
                     <button
                         onClick={() => onManageSecurity(chat)}
-                        className={`p-2 rounded-lg transition-all ${
+                        className={`p-2 rounded-xl transition-all ${
                             chat.isProtected
-                                ? 'text-amber-500 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30'
+                                ? 'text-blue-600 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30'
                                 : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800'
                         }`}
-                        title={chat.isProtected ? 'Password Protected (Click to manage password)' : 'Protect Note with Password'}
+                        title={chat.isProtected ? 'Security settings (Change or Remove password)' : 'Protect note with password'}
                     >
-                        {chat.isProtected ? <Lock className="w-5 h-5" /> : <Unlock className="w-5 h-5" />}
+                        {chat.isProtected ? <Key className="w-5 h-5" /> : <Lock className="w-5 h-5" />}
                     </button>
 
                     <button
                         onClick={() => setShowSubnotesPanel(!showSubnotesPanel)}
-                        className={`p-2 rounded-lg transition-all ${
+                        className={`p-2 rounded-xl transition-all ${
                             showSubnotesPanel 
                                 ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400' 
                                 : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800'
@@ -381,7 +489,7 @@ export default function ChatView({
                     {!isEditing && (
                         <button
                             onClick={() => setUseRawView(!useRawView)}
-                            className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-all"
+                            className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-all"
                             title={useRawView ? "Switch to Styled View" : "Switch to Raw View"}
                         >
                             {useRawView ? <Type className="w-5 h-5" /> : <AlignLeft className="w-5 h-5" />}
@@ -389,14 +497,14 @@ export default function ChatView({
                     )}
                     <button
                         onClick={handleShare}
-                        className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-all"
+                        className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-all"
                         title="Share Note"
                     >
                         {shared ? <Check className="w-5 h-5 text-green-500" /> : <Share2 className="w-5 h-5" />}
                     </button>
                     <button
                         onClick={handleCopy}
-                        className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-all"
+                        className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-all"
                         title="Copy to clipboard"
                     >
                         {copied ? <Check className="w-5 h-5 text-green-500" /> : <Copy className="w-5 h-5" />}
@@ -438,7 +546,7 @@ export default function ChatView({
                     {isAdmin && (
                         <button
                             onClick={() => onDelete(chat._id)}
-                            className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                            className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors"
                             title="Delete Note"
                         >
                             <Trash2 className="w-5 h-5" />
@@ -497,7 +605,6 @@ export default function ChatView({
             {/* Right Subnotes Panel */}
             {showSubnotesPanel && (
                 <>
-                    {/* Backdrop to detect clicks outside */}
                     <div 
                         className="absolute inset-0 z-10 bg-transparent" 
                         onClick={() => setShowSubnotesPanel(false)}
